@@ -1,4 +1,4 @@
-package de.tuberlin.vs_12.utils;
+package de.tu_berlin.cit.vs.jms.common;
 
 import java.util.logging.Level;
 
@@ -11,11 +11,11 @@ public class Configuration {
 
     public static Level getRootLogLevel() {
         // Set the global default log level here
-        return Level.INFO;
+        return Level.FINE;
     }
 
     public static Level getConsoleLogLevel() {
         // Set the console handler's log level
-        return Level.INFO;
+        return Level.FINE;
     }
 }

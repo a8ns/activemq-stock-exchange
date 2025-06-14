@@ -1,9 +1,9 @@
-package de.tuberlin.vs_12.utils;
+package de.tu_berlin.cit.vs.jms.common;
 
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Formatter;
-import java.util.logging.Logger;
 import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 public class LoggingUtils {
     static {
