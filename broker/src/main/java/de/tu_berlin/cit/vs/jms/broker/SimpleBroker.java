@@ -33,8 +33,8 @@ public class SimpleBroker {
         this.con.start();
         this.session = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
-        this.incomingQueue = session.createQueue("client-to-server");
-        this.outgoingQueue = session.createQueue("server-to-client");
+        this.incomingQueue = session.createQueue("broker-incoming");
+        this.outgoingQueue = session.createQueue("broker-outgoing");
         this.consumer= session.createConsumer(incomingQueue);
         this.producer = session.createProducer(outgoingQueue);
 
