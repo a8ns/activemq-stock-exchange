@@ -38,10 +38,10 @@ public class JmsBrokerServer {
             stocks.add(new Stock("JNJ", 175, 155.25));     // Johnson & Johnson - Healthcare
             stocks.add(new Stock("HD", 120, 385.70));      // Home Depot - Home improvement retail
 
+            logger.log(Level.FINE, "STOCKS AVAILABLE: ");
+            logger.log(Level.FINE, "--------------------");
             for (Stock stock : stocks) {
-                logger.log(Level.FINE, "STOCKS AVAILABLE: ");
                 logger.log(Level.FINE, stock.toString());
-
             }
 
             SimpleBroker broker = new SimpleBroker(stocks);
