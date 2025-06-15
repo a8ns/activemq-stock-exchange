@@ -16,7 +16,7 @@ import org.apache.activemq.ActiveMQConnectionFactory;
 public class SimpleBroker {
     private static final Logger logger = LoggingUtils.getLogger(SimpleBroker.class);
 
-
+    Map<Integer, Integer> clients = new HashMap<>();
     Connection con;
     Session session;
     Queue incomingQueue;  // Receive from clients
@@ -25,6 +25,7 @@ public class SimpleBroker {
     MessageConsumer consumer;
     Topic topic;
     List<Stock> stockList;
+    List<MessageProducer> topicProducers = new ArrayList<>();;
 
     public SimpleBroker(List<Stock> stockList) throws JMSException {
         this.stockList = stockList;
@@ -93,7 +94,10 @@ public class SimpleBroker {
 
         for(Stock stock : stockList) {
             /* TODO: prepare stocks as topics */
-            // topic = session.createTopic(″Topic Name″);
+
+            Topic topic = session.createTopic(stock.getName());
+            topicProducers.add(session.createProducer(topic));
+
         }
     }
     
@@ -105,7 +109,15 @@ public class SimpleBroker {
     }
     
     public synchronized int buy(String stockName, int amount) throws JMSException {
-        //TODO
+        if (stockName == null || stockName.isEmpty()) {
+            throw new IllegalArgumentException("stockName is null or empty");
+        } else if (amount < 0) {
+            throw new IllegalArgumentException("amount is negative");
+        } else if (amount > stockList.size()) {
+            throw new IllegalArgumentException("amount is greater than the number of stocks");
+        } else {
+
+        }
         return -1;
     }
     
@@ -114,7 +126,22 @@ public class SimpleBroker {
         return -1;
     }
 
-    
+    public synchronized int registerClient(int clientId) throws JMSException {
+        // case registerClient with 0 money
+        return this.clients.putIfAbsent(clientId, 0) == null ? 0 : -1;
+    }
+
+    public synchronized int deregisterClient(Integer clientId) throws JMSException {
+        if( this.clients.containsKey(clientId) ) {
+            this.clients.remove(clientId);
+            return 0;
+        }
+        return -1;
+    }
+
+    public synchronized int getInfoOnSingleStock(Stock stock) throws JMSException {
+        return -1;
+    }
     public synchronized List<Stock> getStockList() {
         // List<Stock> stockList = new ArrayList<>();
 
