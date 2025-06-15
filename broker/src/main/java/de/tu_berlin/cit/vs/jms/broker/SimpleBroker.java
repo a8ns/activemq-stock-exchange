@@ -11,18 +11,21 @@ import javax.jms.*;
 
 import de.tu_berlin.cit.vs.jms.common.*;
 import org.apache.activemq.ActiveMQConnectionFactory;
+import org.apache.activemq.memory.list.MessageList;
 
 
 public class SimpleBroker {
     private static final Logger logger = LoggingUtils.getLogger(SimpleBroker.class);
 
-    Map<Integer, Integer> clients = new HashMap<>();
+    Map<String, Integer> clients = new HashMap<>();
     Connection con;
     Session session;
+    Queue registrationQueue;
     Queue incomingQueue;  // Receive from clients
     Queue outgoingQueue;  // Send to clients
     MessageProducer producer;
     MessageConsumer consumer;
+    MessageConsumer registrationConsumer;
     Topic topic;
     List<Stock> stockList;
     List<MessageProducer> topicProducers = new ArrayList<>();;
@@ -36,10 +39,24 @@ public class SimpleBroker {
 
         this.incomingQueue = session.createQueue("broker-incoming");
         this.outgoingQueue = session.createQueue("broker-outgoing");
+        this.registrationQueue = session.createQueue("broker-registration");
+
         this.consumer= session.createConsumer(incomingQueue);
         this.producer = session.createProducer(outgoingQueue);
+        this.registrationConsumer = session.createConsumer(registrationQueue);
 
-        MessageListener listener = new MessageListener() {
+        MessageListener registrationListener = new MessageListener() {
+            @Override
+            public void onMessage(Message message) {
+                try {
+                    processRegistration(message);
+                } catch (JMSException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+
+        MessageListener stockListener = new MessageListener() {
             @Override
             public void onMessage(Message msg) {
                 String content = null;
@@ -88,7 +105,7 @@ public class SimpleBroker {
                 }
             }
         };
-        consumer.setMessageListener(listener);
+        consumer.setMessageListener(stockListener);
 
 
 
@@ -100,7 +117,19 @@ public class SimpleBroker {
 
         }
     }
-    
+
+    private synchronized void processRegistration(Message msg) throws JMSException {
+        if(msg instanceof ObjectMessage) {
+            ObjectMessage objMsg = (ObjectMessage) msg;
+            Object obj = objMsg.getObject();
+
+            if (obj instanceof RegisterMessage) {
+                registerClient(((RegisterMessage) obj).getClientName());
+            }
+
+        }
+    }
+
     public void stop() throws JMSException {
         if (this.con != null) this.con.close();
         if (this.producer != null) this.producer.close();
@@ -126,14 +155,14 @@ public class SimpleBroker {
         return -1;
     }
 
-    public synchronized int registerClient(int clientId) throws JMSException {
+    public synchronized int registerClient(String clientName) throws JMSException {
         // case registerClient with 0 money
-        return this.clients.putIfAbsent(clientId, 0) == null ? 0 : -1;
+        return this.clients.putIfAbsent(clientName, 0) == null ? 0 : -1;
     }
 
-    public synchronized int deregisterClient(Integer clientId) throws JMSException {
-        if( this.clients.containsKey(clientId) ) {
-            this.clients.remove(clientId);
+    public synchronized int deregisterClient(String clientName) throws JMSException {
+        if( this.clients.containsKey(clientName) ) {
+            this.clients.remove(clientName);
             return 0;
         }
         return -1;
