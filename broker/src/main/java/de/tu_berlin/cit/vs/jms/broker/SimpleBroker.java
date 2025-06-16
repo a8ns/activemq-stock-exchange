@@ -17,7 +17,7 @@ import org.apache.activemq.memory.list.MessageList;
 public class SimpleBroker {
     private static final Logger logger = LoggingUtils.getLogger(SimpleBroker.class);
 
-    Map<String, Integer> clients = new HashMap<>();
+    Map<String, Client> clients = new HashMap<>();
     Connection con;
     Session session;
     Queue registrationQueue;
@@ -26,7 +26,6 @@ public class SimpleBroker {
     MessageProducer producer;
     MessageConsumer consumer;
     MessageConsumer registrationConsumer;
-    Topic topic;
     List<Stock> stockList;
     List<MessageProducer> topicProducers = new ArrayList<>();;
 
@@ -124,17 +123,20 @@ public class SimpleBroker {
             Object obj = objMsg.getObject();
 
             if (obj instanceof RegisterMessage) {
-                registerClient(((RegisterMessage) obj).getClientName());
+                registerClient(((RegisterMessage) obj).getClientName(), session);
             }
 
         }
     }
 
     public void stop() throws JMSException {
-        if (this.con != null) this.con.close();
-        if (this.producer != null) this.producer.close();
+        for(Client client : clients.values()) {
+            client.cleanup();
+        }
+        clients.clear();
         if (this.session != null) this.session.close();
-        if (this.consumer != null) this.consumer.close();
+        if (this.con != null) this.con.close();
+
     }
     
     public synchronized int buy(String stockName, int amount) throws JMSException {
@@ -155,9 +157,17 @@ public class SimpleBroker {
         return -1;
     }
 
-    public synchronized int registerClient(String clientName) throws JMSException {
+    public synchronized int registerClient(String clientName, Session session) throws JMSException {
         // case registerClient with 0 money
-        return this.clients.putIfAbsent(clientName, 0) == null ? 0 : -1;
+        // check if client exists
+        if (this.clients.containsKey(clientName) == false) {
+            Client newClient = new Client(clientName, session);
+            this.clients.put(clientName, newClient);
+            return 0;
+        };
+        logger.log(Level.WARNING, "client " + clientName + " already registered");
+
+        return -1;
     }
 
     public synchronized int deregisterClient(String clientName) throws JMSException {
