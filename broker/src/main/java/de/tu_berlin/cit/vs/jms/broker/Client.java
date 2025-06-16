@@ -4,7 +4,6 @@ import de.tu_berlin.cit.vs.jms.common.BrokerMessage;
 import de.tu_berlin.cit.vs.jms.common.InsufficientFundsException;
 import de.tu_berlin.cit.vs.jms.common.LoggingUtils;
 import de.tu_berlin.cit.vs.jms.common.Stock;
-import org.apache.activemq.broker.Broker;
 
 import javax.jms.*;
 import java.io.Serializable;

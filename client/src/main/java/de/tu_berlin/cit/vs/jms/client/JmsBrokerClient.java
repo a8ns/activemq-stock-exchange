@@ -3,37 +3,40 @@ package de.tu_berlin.cit.vs.jms.client;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.HashMap;
-import java.util.Map;
+import java.math.BigDecimal;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.jms.Connection;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageListener;
-import javax.jms.MessageProducer;
-import javax.jms.ObjectMessage;
-import javax.jms.Session;
-import de.tu_berlin.cit.vs.jms.common.BuyMessage;
-import de.tu_berlin.cit.vs.jms.common.ListMessage;
+import javax.jms.*;
+
 import de.tu_berlin.cit.vs.jms.common.RegisterMessage;
-import de.tu_berlin.cit.vs.jms.common.RequestListMessage;
-import de.tu_berlin.cit.vs.jms.common.SellMessage;
-import de.tu_berlin.cit.vs.jms.common.Stock;
-import de.tu_berlin.cit.vs.jms.common.UnregisterMessage;
 import org.apache.activemq.ActiveMQConnectionFactory;
 
 
 public class JmsBrokerClient {
     String clientName;
+    Connection con;
+    Session session;
+    Queue registrationQueue;
+    MessageProducer registrationProducer;
     public JmsBrokerClient(String clientName) throws JMSException {
         this.clientName = clientName;
-        
-        /* TODO: initialize connection, sessions, consumer, producer, etc. */
-
+        ActiveMQConnectionFactory conFactory = new ActiveMQConnectionFactory("tcp://localhost:61616");
+        this.con = conFactory.createConnection();
+        this.con.start();
+        this.session = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
+        this.registrationQueue = session.createQueue("broker-registration");
+        this.registrationProducer = session.createProducer(registrationQueue);
+        registerWithBroker(); // TODO: might need refactoring with return queues
+        // TODO: server might return the customer queues
+        /* TODO: initialize consumer, producer, etc. */
     }
-    
+
+    private void registerWithBroker() throws JMSException {
+
+        BigDecimal initialFunds = BigDecimal.valueOf(10000);
+        RegisterMessage registerMessage = new RegisterMessage(clientName, initialFunds);
+        //TODO : send out registerMessage
+    }
     public void requestList() throws JMSException {
         //TODO
     }
@@ -55,7 +58,7 @@ public class JmsBrokerClient {
     }
     
     public void quit() throws JMSException {
-        //TODO
+        //TODO: deregister from Broker
     }
     
     /**
