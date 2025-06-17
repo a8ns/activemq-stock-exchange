@@ -1,13 +1,11 @@
 package de.tu_berlin.cit.vs.jms.broker;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.jms.*;
+import javax.jms.Queue;
 
 import de.tu_berlin.cit.vs.jms.common.*;
 import org.apache.activemq.ActiveMQConnectionFactory;
@@ -27,11 +25,12 @@ public class SimpleBroker {
     MessageConsumer consumer;
     MessageConsumer registrationConsumer;
     Map<String, Stock> stockList;
-    List<MessageProducer> topicProducers = new ArrayList<>();;
+    List<MessageProducer> topicProducers = new ArrayList<>();
 
     public SimpleBroker(Map<String, Stock> stockList) throws JMSException {
         this.stockList = stockList;
         ActiveMQConnectionFactory conFactory = new ActiveMQConnectionFactory("tcp://localhost:61616");
+        conFactory.setTrustedPackages(Arrays.asList("de.tu_berlin.cit.vs.jms.common", "java.math"));
         this.con = conFactory.createConnection();
         this.con.start();
         this.session = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
@@ -43,12 +42,13 @@ public class SimpleBroker {
 
         MessageListener registrationListener = message -> {
             try {
+                logger.log(Level.INFO, "Received JMS Message ");
                 processRegistration(message);
             } catch (JMSException e) {
                 throw new RuntimeException(e);
             }
         };
-        consumer.setMessageListener(registrationListener);
+        registrationConsumer.setMessageListener(registrationListener);
 
 
         for(String stock : stockList.keySet()) {
@@ -67,7 +67,6 @@ public class SimpleBroker {
 
         ObjectMessage objMsg = (ObjectMessage) msg;
         Object obj = objMsg.getObject();
-
         if (!(obj instanceof RegisterMessage)) {
             throw new IllegalArgumentException("Expected RegisterMessage");
         }
@@ -75,8 +74,12 @@ public class SimpleBroker {
         if (registerClient((registerMessage).getClientName(), session) == 0) {
             // get ReplyTo,  produce message and send out
             Destination replyTo = objMsg.getJMSReplyTo();
+            logger.log(Level.FINE, "ReplyTo: " + replyTo.toString());
             if (replyTo != null) {
                 Client newClient = clients.get(registerMessage.getClientName());
+                logger.log(Level.FINE, "Registering client: " + newClient.getClientName());
+                logger.log(Level.FINE, "Incoming Queue: " + newClient.getIncomingQueue());
+                logger.log(Level.FINE, "Outgoing Queue: " + newClient.getOutgoingQueue());
                 if (newClient != null) {
                     RegisterAcknowledgementMessage replyMessage =
                             new RegisterAcknowledgementMessage(newClient.getIncomingQueue(),
@@ -85,6 +88,7 @@ public class SimpleBroker {
                     reply.setJMSCorrelationID(objMsg.getJMSCorrelationID());
 
                     MessageProducer replyProducer = session.createProducer(replyTo);
+                    logger.log(Level.FINE, "Reply: " + reply);
                     replyProducer.send(reply);
                     replyProducer.close();
                 }
