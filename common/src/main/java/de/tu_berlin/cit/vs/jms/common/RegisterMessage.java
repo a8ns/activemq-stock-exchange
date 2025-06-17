@@ -1,6 +1,7 @@
 package de.tu_berlin.cit.vs.jms.common;
 
 
+import javax.jms.Destination;
 import java.math.BigDecimal;
 
 public class RegisterMessage extends BrokerMessage {

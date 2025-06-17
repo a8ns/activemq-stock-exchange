@@ -8,34 +8,78 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.jms.*;
 
+import de.tu_berlin.cit.vs.jms.common.RegisterAcknowledgementMessage;
 import de.tu_berlin.cit.vs.jms.common.RegisterMessage;
 import org.apache.activemq.ActiveMQConnectionFactory;
 
 
 public class JmsBrokerClient {
+    String registrationQueueName = "broker-registration";
     String clientName;
     Connection con;
     Session session;
-    Queue registrationQueue;
-    MessageProducer registrationProducer;
+    Queue incomingQueue;  // Receive from clients
+    Queue outgoingQueue;  // Send to clients
+    MessageProducer producer;
+    MessageConsumer consumer;
+
     public JmsBrokerClient(String clientName) throws JMSException {
         this.clientName = clientName;
         ActiveMQConnectionFactory conFactory = new ActiveMQConnectionFactory("tcp://localhost:61616");
         this.con = conFactory.createConnection();
         this.con.start();
         this.session = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
-        this.registrationQueue = session.createQueue("broker-registration");
-        this.registrationProducer = session.createProducer(registrationQueue);
-        registerWithBroker(); // TODO: might need refactoring with return queues
-        // TODO: server might return the customer queues
-        /* TODO: initialize consumer, producer, etc. */
+
+        RegisterAcknowledgementMessage response = registerWithBroker();
+        if (response.getClientName().equals(this.clientName)) {
+            if ( response.getClientIncomingQueue() instanceof  Queue &&
+                    response.getClientOutgoingQueue() instanceof  Queue ) {
+                this.incomingQueue = response.getClientIncomingQueue();
+                this.outgoingQueue = response.getClientOutgoingQueue();
+                this.consumer = session.createConsumer(incomingQueue);
+                this.producer = session.createProducer(outgoingQueue);
+                MessageListener messageListener = message -> processMessages(message);
+                this.consumer.setMessageListener(messageListener);
+            } else {
+                throw new JMSException("Client " + this.clientName + " received a non-queue");
+            }
+
+        } else {
+            throw new JMSException("Client " + this.clientName + " does not match expected client");
+        }
+
     }
 
-    private void registerWithBroker() throws JMSException {
+    private void processMessages(Message message) {
+    }
 
+    private RegisterAcknowledgementMessage registerWithBroker() throws JMSException {
+        Integer timeout = 30000; // 30 seconds
         BigDecimal initialFunds = BigDecimal.valueOf(10000);
         RegisterMessage registerMessage = new RegisterMessage(clientName, initialFunds);
-        //TODO : send out registerMessage
+
+        Queue registrationQueue = session.createQueue(registrationQueueName);
+        MessageProducer registrationProducer = session.createProducer(registrationQueue);
+        TemporaryQueue replyQueue = session.createTemporaryQueue();
+        MessageConsumer registrationConsumer = session.createConsumer(registrationQueue);
+
+
+        ObjectMessage request = session.createObjectMessage(registerMessage);
+        request.setJMSReplyTo(replyQueue);
+        registrationProducer.send(request);
+        Message reply = registrationConsumer.receive(timeout);
+        if (reply == null) {
+             throw new JMSException("Could not receive registration response");
+        }
+
+        if (reply instanceof RegisterAcknowledgementMessage) {
+            RegisterAcknowledgementMessage response = (RegisterAcknowledgementMessage) reply;
+            return response;
+        } else {
+            throw new JMSException("Could not receive registration response");
+        }
+
+
     }
     public void requestList() throws JMSException {
         //TODO

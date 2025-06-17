@@ -36,24 +36,19 @@ public class SimpleBroker {
         this.con.start();
         this.session = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
-        this.incomingQueue = session.createQueue("broker-incoming");
-        this.outgoingQueue = session.createQueue("broker-outgoing");
+
         this.registrationQueue = session.createQueue("broker-registration");
 
-        this.consumer= session.createConsumer(incomingQueue);
-        this.producer = session.createProducer(outgoingQueue);
         this.registrationConsumer = session.createConsumer(registrationQueue);
 
-        MessageListener registrationListener = new MessageListener() {
-            @Override
-            public void onMessage(Message message) {
-                try {
-                    processRegistration(message);
-                } catch (JMSException e) {
-                    throw new RuntimeException(e);
-                }
+        MessageListener registrationListener = message -> {
+            try {
+                processRegistration(message);
+            } catch (JMSException e) {
+                throw new RuntimeException(e);
             }
         };
+        consumer.setMessageListener(registrationListener);
 
 
         for(String stock : stockList.keySet()) {
@@ -66,14 +61,34 @@ public class SimpleBroker {
     }
 
     private synchronized void processRegistration(Message msg) throws JMSException {
-        if(msg instanceof ObjectMessage) {
-            ObjectMessage objMsg = (ObjectMessage) msg;
-            Object obj = objMsg.getObject();
+        if (!(msg instanceof ObjectMessage)) {
+            throw new IllegalArgumentException("Expected ObjectMessage");
+        }
 
-            if (obj instanceof RegisterMessage) {
-                registerClient(((RegisterMessage) obj).getClientName(), session);
+        ObjectMessage objMsg = (ObjectMessage) msg;
+        Object obj = objMsg.getObject();
+
+        if (!(obj instanceof RegisterMessage)) {
+            throw new IllegalArgumentException("Expected RegisterMessage");
+        }
+        RegisterMessage registerMessage = (RegisterMessage) obj;
+        if (registerClient((registerMessage).getClientName(), session) == 0) {
+            // get ReplyTo,  produce message and send out
+            Destination replyTo = objMsg.getJMSReplyTo();
+            if (replyTo != null) {
+                Client newClient = clients.get(registerMessage.getClientName());
+                if (newClient != null) {
+                    RegisterAcknowledgementMessage replyMessage =
+                            new RegisterAcknowledgementMessage(newClient.getIncomingQueue(),
+                                                                newClient.getOutgoingQueue());
+                    ObjectMessage reply = session.createObjectMessage(replyMessage);
+                    reply.setJMSCorrelationID(objMsg.getJMSCorrelationID());
+
+                    MessageProducer replyProducer = session.createProducer(replyTo);
+                    replyProducer.send(reply);
+                    replyProducer.close();
+                }
             }
-
         }
     }
 
@@ -86,24 +101,21 @@ public class SimpleBroker {
         if (this.con != null) this.con.close();
 
     }
-    
+
 
 
 
     public synchronized int registerClient(String clientName, Session session) throws JMSException {
-        // case registerClient with 0 money
         // check if client exists
-        if (this.clients.containsKey(clientName) == false) {
-            Client newClient = new Client(clientName, session);
-            newClient.setMessageListener(msg -> handleClientMessage(newClient, msg));
+        if (this.clients.containsKey(clientName)) {
+            throw new IllegalArgumentException("Client " + clientName + " already registered");
+        }
 
+        Client newClient = new Client(clientName, session);
+        newClient.setMessageListener(msg -> handleClientMessage(newClient, msg));
+        this.clients.put(clientName, newClient);
 
-            this.clients.put(clientName, newClient);
-            return 0;
-        };
-        logger.log(Level.WARNING, "client " + clientName + " already registered");
-
-        return -1;
+        return 0;
     }
 
     private void handleClientMessage(Client client, Message msg) {
