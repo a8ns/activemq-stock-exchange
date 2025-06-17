@@ -36,6 +36,13 @@ public class Client {
         this.producer = session.createProducer(outgoingQueue);
     }
 
+    public Queue getIncomingQueue() {
+        return incomingQueue;
+    }
+    public Queue getOutgoingQueue() {
+        return outgoingQueue;
+    }
+
     public void sendMessage(String message) throws JMSException {
         producer.send(session.createTextMessage(message));
     }
