@@ -24,8 +24,9 @@ public class Client {
     private MessageConsumer consumer;
     private Map<Stock, Integer> stocks = new HashMap<>();
     private BigDecimal funds;
-
-    public Client(String clientName, Session session) throws JMSException {
+    private SimpleBroker broker;
+    public Client(SimpleBroker broker, String clientName, Session session) throws JMSException {
+        this.broker = broker;
         this.clientName = clientName;
         this.session = session;
 
@@ -54,6 +55,7 @@ public class Client {
 
     public void setMessageListener(MessageListener messageListener) throws JMSException {
         consumer.setMessageListener(messageListener);
+
     }
 
     public void removeMessageListener(MessageListener messageListener) throws JMSException {
@@ -134,21 +136,18 @@ public class Client {
         }
     }
 
-    MessageListener stockListener = new MessageListener() {
-        @Override
-        public void onMessage(Message message) {
-            String content = null;
-            if (message instanceof TextMessage) {
-
-            } else if (message instanceof BrokerMessage) {
-                BrokerMessage brokerMessage = (BrokerMessage) message;
-
-                if (brokerMessage.getType() == BrokerMessage.Type.STOCK_BUY) {
-
-                }
-            }
+    MessageListener messageListener = message -> {
+        try {
+            logger.log(Level.INFO, "Received JMS Message ");
+            processMessage(message);
+        } catch (JMSException e) {
+            logger.log(Level.SEVERE, "Error processing registration", e);
         }
     };
+
+    void processMessage(Message message) throws JMSException {
+        broker.handleClientMessage(this, message);
+    }
 
     @Override
     public String toString() {

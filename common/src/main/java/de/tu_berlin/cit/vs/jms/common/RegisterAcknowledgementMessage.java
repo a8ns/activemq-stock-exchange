@@ -7,8 +7,9 @@ public class RegisterAcknowledgementMessage extends BrokerMessage {
     private Queue clientIncomingQueue;
     private Queue clientOutgoingQueue;
 
-    public RegisterAcknowledgementMessage(Queue clientIncomingQueue, Queue clientOutgoingQueue) {
+    public RegisterAcknowledgementMessage(String clientName, Queue clientIncomingQueue, Queue clientOutgoingQueue) {
         super(Type.SYSTEM_REGISTER);
+        this.clientName = clientName;
         this.clientIncomingQueue = clientIncomingQueue;
         this.clientOutgoingQueue = clientOutgoingQueue;
     }

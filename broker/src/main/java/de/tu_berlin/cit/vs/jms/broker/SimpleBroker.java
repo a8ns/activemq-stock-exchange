@@ -18,12 +18,14 @@ public class SimpleBroker {
     Map<String, Client> clients = new HashMap<>();
     Connection con;
     Session session;
+    Session replySession;
     Queue registrationQueue;
     Queue incomingQueue;  // Receive from clients
     Queue outgoingQueue;  // Send to clients
     MessageProducer producer;
     MessageConsumer consumer;
     MessageConsumer registrationConsumer;
+    private MessageProducer replyOnceProducer;
     Map<String, Stock> stockList;
     List<MessageProducer> topicProducers = new ArrayList<>();
 
@@ -34,6 +36,7 @@ public class SimpleBroker {
         this.con = conFactory.createConnection();
         this.con.start();
         this.session = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
+        this.replySession = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
 
         this.registrationQueue = session.createQueue("broker-registration");
@@ -45,7 +48,7 @@ public class SimpleBroker {
                 logger.log(Level.INFO, "Received JMS Message ");
                 processRegistration(message);
             } catch (JMSException e) {
-                throw new RuntimeException(e);
+                logger.log(Level.SEVERE, "Error processing registration", e);
             }
         };
         registrationConsumer.setMessageListener(registrationListener);
@@ -82,15 +85,26 @@ public class SimpleBroker {
                 logger.log(Level.FINE, "Outgoing Queue: " + newClient.getOutgoingQueue());
                 if (newClient != null) {
                     RegisterAcknowledgementMessage replyMessage =
-                            new RegisterAcknowledgementMessage(newClient.getIncomingQueue(),
+                            new RegisterAcknowledgementMessage(registerMessage.getClientName(),
+                                                                newClient.getIncomingQueue(),
                                                                 newClient.getOutgoingQueue());
-                    ObjectMessage reply = session.createObjectMessage(replyMessage);
+                    ObjectMessage reply = replySession.createObjectMessage(replyMessage);
                     reply.setJMSCorrelationID(objMsg.getJMSCorrelationID());
-
-                    MessageProducer replyProducer = session.createProducer(replyTo);
+                    reply.setJMSDeliveryMode(DeliveryMode.NON_PERSISTENT);
+                    reply.setJMSReplyTo(replyTo);
+                    replyOnceProducer = replySession.createProducer(null);
+                    replyOnceProducer.setTimeToLive(5000);
+                    logger.log(Level.FINE, "ReplyTo destination: " + replyTo);
                     logger.log(Level.FINE, "Reply: " + reply);
-                    replyProducer.send(reply);
-                    replyProducer.close();
+                    if (replyTo instanceof TemporaryQueue) {
+                        logger.log(Level.FINE, "Temp queue confirmed");
+                    } else {
+                        logger.log(Level.WARNING, "ReplyTo is not a temp queue: " + replyTo.getClass());
+                    }
+                    replyOnceProducer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+                    replyOnceProducer.send(replyTo, reply);
+                    replyOnceProducer.close();
+                    logger.log(Level.FINE, "replyTo sent out, replyOnceProducer closed");
                 }
             }
         }
@@ -115,14 +129,14 @@ public class SimpleBroker {
             throw new IllegalArgumentException("Client " + clientName + " already registered");
         }
 
-        Client newClient = new Client(clientName, session);
+        Client newClient = new Client(this, clientName, session);
         newClient.setMessageListener(msg -> handleClientMessage(newClient, msg));
         this.clients.put(clientName, newClient);
 
         return 0;
     }
 
-    private void handleClientMessage(Client client, Message msg) {
+     protected void handleClientMessage(Client client, Message msg) {
         // TODO handle correct message objects
         try {
             if (msg instanceof ObjectMessage) {
@@ -144,7 +158,11 @@ public class SimpleBroker {
         synchronized (client) {
             switch (commands[0].toLowerCase()) {
                 case "list":
-                    getStockList();
+                    logger.log(Level.FINE, "Listing stocks for: " + client.getClientName());
+                    ListMessage listMessage = new ListMessage(getStockList());
+                    ObjectMessage request = session.createObjectMessage(listMessage);
+                    logger.log(Level.FINE, "About to send list message");
+                    producer.send(request);
                     break;
                 case "buy":
                     // TODO: Handle buy logic using client.addStock(), client.removeFunds()
@@ -175,11 +193,7 @@ public class SimpleBroker {
     public synchronized int getInfoOnSingleStock(Stock stock) throws JMSException {
         return -1;
     }
-    public synchronized Map<String, Stock> getStockList() {
-        // List<Stock> stockList = new ArrayList<>();
-
-        /* TODO: populate stockList */
-
-        return this.stockList;
+    public synchronized List<Stock> getStockList() {
+        return new ArrayList<>(this.stockList.values());
     }
 }
