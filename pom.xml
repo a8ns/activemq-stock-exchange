@@ -20,7 +20,7 @@
         <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jms.version>2.0.1</jms.version>
-        <activemq.version>5.18.3</activemq.version>
+        <activemq.version>5.19.0</activemq.version>
     </properties>
 
     <dependencyManagement>

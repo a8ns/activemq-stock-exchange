@@ -1,8 +1,12 @@
 # Use official Apache ActiveMQ Classic image
-FROM apache/activemq-classic:latest
+FROM apache/activemq-classic:5.19.0
 
-# copy custom config into container
-COPY activemq.xml /opt/apache-activemq-5.15.6/conf/activemq.xml
+# Set system property for trusted packages
+ENV ACTIVEMQ_OPTS="-Dorg.apache.activemq.SERIALIZABLE_PACKAGES=de.tu_berlin.cit.vs.jms.common,java.math"
+
+# Fix jetty host binding and copy custom config
+RUN sed -i 's/127.0.0.1/0.0.0.0/g' /opt/apache-activemq/conf/jetty.xml
+COPY activemq.xml /opt/apache-activemq/conf/activemq.xml
 
 # Expose ports
 EXPOSE 61616 8161 5672 61613 1883

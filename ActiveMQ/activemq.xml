@@ -36,13 +36,16 @@
             advisorySupport="false"
             schedulePeriodForDestinationPurge="100000">
 
+
+
+
         <destinationPolicy>
             <policyMap>
                 <policyEntries>
                     <!-- Auto-cleanup for client queues -->
-                    <policyEntry queue="*ToBroker" gcInactiveDestinations="true" inactiveTimoutBeforeGC="300000" optimizedDispatch="true"/>
-                    <policyEntry queue="*FromBroker" gcInactiveDestinations="true" inactiveTimoutBeforeGC="300000" optimizedDispatch="true"/>
-                    <!-- Delete queues after 5 min of no activity -->
+                    <policyEntry queue="*ToBroker" gcInactiveDestinations="true" inactiveTimoutBeforeGC="3000000" optimizedDispatch="true"/>
+                    <policyEntry queue="*FromBroker" gcInactiveDestinations="true" inactiveTimoutBeforeGC="3000000" optimizedDispatch="true"/>
+                    <!-- Delete queues after 50 min of no activity -->
 
                     <policyEntry topic=">" >
                         <!-- The constantPendingMessageLimitStrategy is used to prevent
