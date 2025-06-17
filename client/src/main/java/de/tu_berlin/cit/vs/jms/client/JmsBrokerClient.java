@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.jms.*;
@@ -26,6 +27,7 @@ public class JmsBrokerClient {
     public JmsBrokerClient(String clientName) throws JMSException {
         this.clientName = clientName;
         ActiveMQConnectionFactory conFactory = new ActiveMQConnectionFactory("tcp://localhost:61616");
+        conFactory.setTrustedPackages(Arrays.asList("de.tu_berlin.cit.vs.jms.common", "java.math"));
         this.con = conFactory.createConnection();
         this.con.start();
         this.session = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
@@ -54,7 +56,7 @@ public class JmsBrokerClient {
     }
 
     private RegisterAcknowledgementMessage registerWithBroker() throws JMSException {
-        Integer timeout = 30000; // 30 seconds
+        Integer timeout = 300000; // 300 seconds
         BigDecimal initialFunds = BigDecimal.valueOf(10000);
         RegisterMessage registerMessage = new RegisterMessage(clientName, initialFunds);
 
