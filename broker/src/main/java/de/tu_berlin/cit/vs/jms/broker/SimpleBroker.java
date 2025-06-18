@@ -1,6 +1,7 @@
 package de.tu_berlin.cit.vs.jms.broker;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -130,56 +131,44 @@ public class SimpleBroker {
         }
 
         Client newClient = new Client(this, clientName, session);
-        newClient.setMessageListener(msg -> handleClientMessage(newClient, msg));
+        newClient.setMessageListener(msg -> newClient.handleClientMessage(newClient, msg));
         this.clients.put(clientName, newClient);
 
         return 0;
     }
 
-     protected void handleClientMessage(Client client, Message msg) {
-        // TODO handle correct message objects
+    public synchronized void sellStock(Client client, String stockName, Integer quantity) throws JMSException {
         try {
-            if (msg instanceof ObjectMessage) {
-                Object obj = ((ObjectMessage) msg).getObject();
-
-                if (obj instanceof String) {
-                    processClientCommand(client, (String) obj);
-                }
-            } else if (msg instanceof TextMessage) {
-                processClientCommand(client, ((TextMessage) msg).getText());
-            }
+            client.removeStock(stockName, quantity);
+            client.addFunds(
+                    this.getCurrentStockPrice(stockName).multiply(BigDecimal.valueOf(quantity))
+            );
         } catch (JMSException e) {
-            logger.severe("Error from client " + client.getClientName() + ": " + e.getMessage());
+            logger.log(Level.SEVERE, "Error processing sell stock", e);
         }
     }
 
-    private void processClientCommand(Client client, String obj) throws JMSException {
-        String[] commands = obj.split(" ");
-        synchronized (client) {
-            switch (commands[0].toLowerCase()) {
-                case "list":
-                    logger.log(Level.FINE, "Listing stocks for: " + client.getClientName());
-                    ListMessage listMessage = new ListMessage(getStockList());
-                    ObjectMessage request = session.createObjectMessage(listMessage);
-                    logger.log(Level.FINE, "About to send list message");
-                    producer.send(request);
-                    break;
-                case "buy":
-                    // TODO: Handle buy logic using client.addStock(), client.removeFunds()
-                    break;
-                case "sell":
-                    // TODO: Handle sell logic using client.removeStock(), client.addFunds()
-                    break;
-                case "watch":
-                    break;
-                case "unwatch":
-                    break;
-                case "deregister":
-                    deregisterClient(client.getClientName());
-                    break;
-                default:
+    public synchronized Stock buyStock(Client client, String stockName, Integer quantity) throws JMSException {
+        if (stockList.containsKey(stockName)) {
+            Stock stock = stockList.get(stockName);
+            if (quantity <= stock.getAvailableCount()) {
+
+                if (client.getFunds().compareTo(
+                        BigDecimal.valueOf(quantity).multiply(this.getCurrentStockPrice(stockName))
+                ) >= 0) {                 // check if enough funds with client
+                    Integer newQuantity = quantity - stock.getAvailableCount();
+                    stock.setAvailableCount(newQuantity);
+                    Stock boughtStock = new Stock(stockName, quantity, this.getCurrentStockPrice(stockName));
+                    return boughtStock;
+                }
             }
+            throw new IllegalArgumentException("Requested stock quantity for " + stockName + " is not available");
         }
+        throw new IllegalArgumentException("Stock " + stockName + " does not exist");
+    }
+
+    public BigDecimal getCurrentStockPrice(String stockName) {
+        return stockList.get(stockName).getPrice();
     }
 
     public synchronized int deregisterClient(String clientName) throws JMSException {
@@ -190,8 +179,8 @@ public class SimpleBroker {
         return -1;
     }
 
-    public synchronized int getInfoOnSingleStock(Stock stock) throws JMSException {
-        return -1;
+    public synchronized String getInfoOnSingleStock(Stock stock) throws JMSException {
+        return stock.toString();
     }
     public synchronized List<Stock> getStockList() {
         return new ArrayList<>(this.stockList.values());

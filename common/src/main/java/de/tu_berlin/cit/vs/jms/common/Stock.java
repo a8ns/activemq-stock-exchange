@@ -1,19 +1,20 @@
 package de.tu_berlin.cit.vs.jms.common;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 
 
 public class Stock implements Serializable {
     private String name;
     private int stockCount;
     private int availableCount;
-    private double price;
+    private BigDecimal price;
     
-    public Stock(String name, int stockCount, double startingPrice) {
+    public Stock(String name, int stockCount, BigDecimal price) {
         this.stockCount = stockCount;
         this.availableCount = stockCount;
         this.name = name;
-        this.price = startingPrice;
+        this.price = price;
     }
 
     public String getName() {
@@ -40,11 +41,11 @@ public class Stock implements Serializable {
         this.availableCount = availableCount;
     }
 
-    public double getPrice() {
+    public BigDecimal getPrice() {
         return price;
     }
 
-    public void setPrice(double price) {
+    public void setPrice(BigDecimal price) {
         this.price = price;
     }
     

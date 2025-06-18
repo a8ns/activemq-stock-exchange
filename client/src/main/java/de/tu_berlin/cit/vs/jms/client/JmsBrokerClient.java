@@ -41,6 +41,7 @@ public class JmsBrokerClient {
         if (response.getClientName().equals(this.clientName)) {
             if ( response.getClientIncomingQueue() instanceof  Queue &&
                     response.getClientOutgoingQueue() instanceof  Queue ) {
+                // all further actions make sense if client gets registration
                 this.incomingQueue = response.getClientIncomingQueue();
                 this.outgoingQueue = response.getClientOutgoingQueue();
                 this.consumer = session.createConsumer(incomingQueue);
