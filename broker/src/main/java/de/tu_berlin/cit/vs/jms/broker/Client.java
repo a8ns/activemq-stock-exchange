@@ -1,15 +1,13 @@
 package de.tu_berlin.cit.vs.jms.broker;
 
-import de.tu_berlin.cit.vs.jms.common.BrokerMessage;
-import de.tu_berlin.cit.vs.jms.common.InsufficientFundsException;
-import de.tu_berlin.cit.vs.jms.common.LoggingUtils;
-import de.tu_berlin.cit.vs.jms.common.Stock;
+import de.tu_berlin.cit.vs.jms.common.*;
 
 import javax.jms.*;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -22,10 +20,11 @@ public class Client {
     private Queue outgoingQueue;  // Send to client
     private MessageProducer producer;
     private MessageConsumer consumer;
-    private Map<Stock, Integer> stocks = new HashMap<>();
+    private Map<String, Stock> stocks = new HashMap<>();
     private BigDecimal funds;
-
-    public Client(String clientName, Session session) throws JMSException {
+    private SimpleBroker broker;
+    public Client(SimpleBroker broker, String clientName, Session session) throws JMSException {
+        this.broker = broker;
         this.clientName = clientName;
         this.session = session;
 
@@ -54,6 +53,7 @@ public class Client {
 
     public void setMessageListener(MessageListener messageListener) throws JMSException {
         consumer.setMessageListener(messageListener);
+
     }
 
     public void removeMessageListener(MessageListener messageListener) throws JMSException {
@@ -63,6 +63,55 @@ public class Client {
     public String getClientName() {
         return clientName;
     }
+
+    protected void handleClientMessage(Client client, Message msg) {
+        try {
+            if (msg instanceof ObjectMessage) {
+                Object obj = ((ObjectMessage) msg).getObject();
+                if (obj instanceof BrokerMessage) {
+                    BrokerMessage brokerMessage = (BrokerMessage) obj;
+                    BrokerMessage.Type msgType = brokerMessage.getType();
+                    switch (msgType) {
+                        case STOCK_LIST:
+                            logger.log(Level.FINE, "Listing stocks for: " + client.getClientName());
+                            ListMessage listMessage = new ListMessage(broker.getStockList());
+                            ObjectMessage request = session.createObjectMessage(listMessage);
+                            logger.log(Level.FINE, "About to send list message");
+                            producer.send(request);
+                            break;
+                        case SYSTEM_UNREGISTER:
+                            broker.deregisterClient(client.getClientName());
+                            break;
+                        case STOCK_BUY:
+                            BuyMessage buyMessage = (BuyMessage) msg;
+                            Stock boughtStock = broker.buyStock(this, buyMessage.getStockName(),  buyMessage.getAmount());
+                            addStock(boughtStock.getName(), boughtStock.getStockCount(), boughtStock.getPrice());
+                            break;
+                        case STOCK_SELL:
+                            SellMessage sell = (SellMessage) brokerMessage;
+                            String stockNameForSell = sell.getStockName();
+                            Integer amount = sell.getAmount();
+                            broker.sellStock(this, stockNameForSell, amount);
+                            break;
+                        case STOCK_WATCH:
+                            // TODO
+                            break;
+                        case STOCK_UNWATCH:
+                            // TODO
+                            break;
+                        default:
+
+                    }
+                }
+
+            } else if (msg instanceof TextMessage) { // for the case of non-object messages (are we gonna have it at all?)
+//                processClientCommand(client, ((TextMessage) msg).getText());
+            }
+        } catch (JMSException e) {
+            logger.severe("Error from client " + client.getClientName() + ": " + e.getMessage());
+        }
+    }
+
 
     protected synchronized void addFunds(BigDecimal funds) {
         if (funds == null || funds.compareTo(BigDecimal.ZERO) <= 0)
@@ -89,34 +138,36 @@ public class Client {
     }
 
 
-    protected synchronized void addStock(Stock stock, Integer quantity) throws JMSException {
-        if (stocks.containsKey(stock)) {
-            Integer currentQuantity = stocks.get(stock);
-                Integer newQuantity = currentQuantity + quantity;
-                stocks.put(stock, newQuantity);
+    protected synchronized void addStock(String stockName, Integer quantity, BigDecimal price) throws JMSException {
+        if (stocks.containsKey(stockName)) {
+            Integer currentQuantity = stocks.get(stockName).getStockCount();
+            Integer newQuantity = currentQuantity + quantity;
+            stocks.get(stockName).setStockCount(newQuantity);
         } else {
-            stocks.put(stock, quantity);
+            Stock newStock = new Stock(stockName, quantity, price);
+            stocks.put(stockName, newStock);
         }
     }
 
-    protected synchronized void removeStock(Stock stock, Integer quantity) throws JMSException {
-        if (stocks.containsKey(stock)) {
-            Integer currentQuantity = stocks.get(stock);
-            if (quantity <= currentQuantity) {
-                Integer newQuantity = currentQuantity - quantity;
+    protected synchronized void removeStock(String stockName, Integer quantity) throws JMSException {
+        if (stocks.containsKey(stockName)) {
+            Stock stock = stocks.get(stockName);
+            if (quantity <= stock.getStockCount()) {
+                Integer newQuantity = stock.getStockCount() - quantity;
                 if (newQuantity == 0) {
                     stocks.remove(stock);
                 } else {
-                    stocks.put(stock, newQuantity);
+                    stock.setStockCount(newQuantity);
                 }
+            } else {
+                logger.log(Level.SEVERE, "Stock count exceeded available stock count");
             }
-            stocks.remove(stock);
         }
 
 
     }
 
-    protected Map<Stock, Integer> getClientStocks() {
+    protected Map<String, Stock> getClientStocks() {
         return stocks;
     }
 
@@ -134,21 +185,6 @@ public class Client {
         }
     }
 
-    MessageListener stockListener = new MessageListener() {
-        @Override
-        public void onMessage(Message message) {
-            String content = null;
-            if (message instanceof TextMessage) {
-
-            } else if (message instanceof BrokerMessage) {
-                BrokerMessage brokerMessage = (BrokerMessage) message;
-
-                if (brokerMessage.getType() == BrokerMessage.Type.STOCK_BUY) {
-
-                }
-            }
-        }
-    };
 
     @Override
     public String toString() {
