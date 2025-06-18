@@ -32,12 +32,14 @@ public class JmsBrokerClient {
         conFactory.setTrustedPackages(Arrays.asList(
                 "de.tu_berlin.cit.vs.jms.common",
                 "java.math",
+                "java.util",
                 "org.apache.activemq.command" ));
         this.con = conFactory.createConnection();
         this.con.start();
         this.session = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
         RegisterAcknowledgementMessage response = registerWithBroker();
+
         if (response.getClientName().equals(this.clientName)) {
             if ( response.getClientIncomingQueue() instanceof  Queue &&
                     response.getClientOutgoingQueue() instanceof  Queue ) {
@@ -46,14 +48,17 @@ public class JmsBrokerClient {
                 this.outgoingQueue = response.getClientOutgoingQueue();
                 this.consumer = session.createConsumer(incomingQueue);
                 this.producer = session.createProducer(outgoingQueue);
+                logger.log(Level.FINE, "Incoming Queue: ", incomingQueue);
+                logger.log(Level.FINE, "Outgoing Queue: ", outgoingQueue);
                 MessageListener messageListener = message -> {
                     try {
                         processMessages(message);
                     } catch (JMSException e) {
-                        throw new RuntimeException(e);
+                        logger.log(Level.SEVERE, "Error processing JMS message", e);
                     }
                 };
                 this.consumer.setMessageListener(messageListener);
+                logger.log(Level.FINE, "Message listener registered");
             } else {
                 throw new JMSException("Client " + this.clientName + " received a non-queue");
             }
@@ -66,14 +71,13 @@ public class JmsBrokerClient {
 
     private void processMessages(Message message) throws JMSException {
         if (message instanceof ObjectMessage) {
-
-            Object obj = ((ObjectMessage) message).getObject();
-            if (obj instanceof ListMessage) {
-                ListMessage listMessage = (ListMessage) obj;
-                logger.info("Processing list message with the following items:");
-                for (Stock stock : listMessage.getStocks()) {
-                    logger.info(stock.toString());
-                }
+            ObjectMessage objReply = (ObjectMessage) message;
+            Object responseData = objReply.getObject();
+            if (responseData instanceof ListMessage) {
+                ListMessage listResponse = (ListMessage) responseData;
+                listResponse.getStocks().forEach(stock -> {
+                    logger.log( Level.INFO,"Stock: " + stock.toString());
+                });
             }
         }
     }
@@ -110,12 +114,10 @@ public class JmsBrokerClient {
 
     }
     public void requestList() throws JMSException {
-        //TODO
-        logger.info("Requesting list");
         RequestListMessage listMessage = new RequestListMessage();
         ObjectMessage request = session.createObjectMessage(listMessage);
         producer.send(request);
-        logger.info("Requesting list sent");
+        logger.log(Level.FINE,"Requesting list sent");
     }
     
     public void buy(String stockName, int amount) throws JMSException {

@@ -33,7 +33,11 @@ public class SimpleBroker {
     public SimpleBroker(Map<String, Stock> stockList) throws JMSException {
         this.stockList = stockList;
         ActiveMQConnectionFactory conFactory = new ActiveMQConnectionFactory("tcp://localhost:61616");
-        conFactory.setTrustedPackages(Arrays.asList("de.tu_berlin.cit.vs.jms.common", "java.math"));
+        conFactory.setTrustedPackages(Arrays.asList(
+                "de.tu_berlin.cit.vs.jms.common",
+                "java.math",
+                "java.util",
+                "org.apache.activemq.command"));
         this.con = conFactory.createConnection();
         this.con.start();
         this.session = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
@@ -85,10 +89,11 @@ public class SimpleBroker {
                 logger.log(Level.FINE, "Incoming Queue: " + newClient.getIncomingQueue());
                 logger.log(Level.FINE, "Outgoing Queue: " + newClient.getOutgoingQueue());
                 if (newClient != null) {
+                    // reversing incoming to outgoing and vise versa:
                     RegisterAcknowledgementMessage replyMessage =
                             new RegisterAcknowledgementMessage(registerMessage.getClientName(),
-                                                                newClient.getIncomingQueue(),
-                                                                newClient.getOutgoingQueue());
+                                                                newClient.getOutgoingQueue(),
+                                                                newClient.getIncomingQueue());
                     ObjectMessage reply = replySession.createObjectMessage(replyMessage);
                     reply.setJMSCorrelationID(objMsg.getJMSCorrelationID());
                     reply.setJMSDeliveryMode(DeliveryMode.NON_PERSISTENT);
