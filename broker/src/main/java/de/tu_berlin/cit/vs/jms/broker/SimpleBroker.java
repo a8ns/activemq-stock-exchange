@@ -1,6 +1,5 @@
 package de.tu_berlin.cit.vs.jms.broker;
 
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.logging.Level;
@@ -10,7 +9,6 @@ import javax.jms.Queue;
 
 import de.tu_berlin.cit.vs.jms.common.*;
 import org.apache.activemq.ActiveMQConnectionFactory;
-import org.apache.activemq.memory.list.MessageList;
 
 
 public class SimpleBroker {
@@ -21,17 +19,14 @@ public class SimpleBroker {
     Session session;
     Session replySession;
     Queue registrationQueue;
-    Queue incomingQueue;  // Receive from clients
-    Queue outgoingQueue;  // Send to clients
-    MessageProducer producer;
-    MessageConsumer consumer;
     MessageConsumer registrationConsumer;
     private MessageProducer replyOnceProducer;
-    Map<String, Stock> stockList;
-    List<MessageProducer> topicProducers = new ArrayList<>();
+    Map<String, Stock> stockMap = new HashMap<>();
+    Map<String, Topic> topicMap = new HashMap<>();
+    Map<String, MessageProducer> topicProducers = new HashMap<>();
 
     public SimpleBroker(Map<String, Stock> stockList) throws JMSException {
-        this.stockList = stockList;
+        this.stockMap = stockList;
         ActiveMQConnectionFactory conFactory = new ActiveMQConnectionFactory("tcp://localhost:61616");
         conFactory.setTrustedPackages(Arrays.asList(
                 "de.tu_berlin.cit.vs.jms.common",
@@ -59,12 +54,62 @@ public class SimpleBroker {
         registrationConsumer.setMessageListener(registrationListener);
 
 
-        for(String stock : stockList.keySet()) {
+        for(String stockName : stockList.keySet()) {
             /* WIP: prepare stocks as topics */
 
-            Topic topic = session.createTopic(stock);
-            topicProducers.add(session.createProducer(topic));
+            Topic topic = session.createTopic(stockName);
+            topicMap.put(stockName, topic);
+            topicProducers.put(stockName, session.createProducer(topic));
 
+        }
+    }
+
+    private void updateStockTopic(Stock stock, StockEvent stockEvent) throws JMSException {
+        String payload = "";
+        switch(stockEvent) {
+            case STOCK_PRICE_CHANGED:
+                payload = "New price for " + stock.getName() + " is " + stock.getPrice();
+
+                break;
+            case STOCK_SOLD:
+                payload = stock.getName() + " is " + "sold";
+                break;
+            case STOCK_BOUGHT:
+                payload = stock.getName() + " is " + "bought";
+                break;
+            default:
+                break;
+        }
+        if (payload != "") {
+            Message message = session.createTextMessage(payload);
+            if (topicProducers.containsKey(stock.getName())) {
+                topicProducers.get(stock.getName()).send(message);
+            }
+        }
+    }
+
+    private void updateStockTopic(String stockName, StockEvent stockEvent) throws JMSException {
+        String payload = "";
+        switch(stockEvent) {
+            case STOCK_PRICE_CHANGED:
+                if (stockMap.containsKey(stockName)) {
+                    payload = "New price for " + stockName + " is " + stockMap.get(stockName).getPrice();
+                }
+                break;
+            case STOCK_SOLD:
+                payload = stockName + " is " + "sold";
+                break;
+            case STOCK_BOUGHT:
+                payload = stockName + " is " + "bought";
+                break;
+            default:
+                break;
+        }
+        if (payload != "") {
+            Message message = session.createTextMessage(payload);
+            if (topicProducers.containsKey(stockName)) {
+                topicProducers.get(stockName).send(message);
+            }
         }
     }
 
@@ -79,7 +124,7 @@ public class SimpleBroker {
             throw new IllegalArgumentException("Expected RegisterMessage");
         }
         RegisterMessage registerMessage = (RegisterMessage) obj;
-        if (registerClient((registerMessage).getClientName(), session) == 0) {
+        if (registerClient(registerMessage.getClientName(), session, registerMessage.getInitialAmount()) == 0) {
             // get ReplyTo,  produce message and send out
             Destination replyTo = objMsg.getJMSReplyTo();
             logger.log(Level.FINE, "ReplyTo: " + replyTo.toString());
@@ -129,13 +174,13 @@ public class SimpleBroker {
 
 
 
-    public synchronized int registerClient(String clientName, Session session) throws JMSException {
+    public synchronized int registerClient(String clientName, Session session, BigDecimal funds) throws JMSException {
         // check if client exists
         if (this.clients.containsKey(clientName)) {
             throw new IllegalArgumentException("Client " + clientName + " already registered");
         }
 
-        Client newClient = new Client(this, clientName, session);
+        Client newClient = new Client(this, clientName, session, funds);
         newClient.setMessageListener(msg -> newClient.handleClientMessage(newClient, msg));
         this.clients.put(clientName, newClient);
 
@@ -145,17 +190,24 @@ public class SimpleBroker {
     public synchronized void sellStock(Client client, String stockName, Integer quantity) throws JMSException {
         try {
             client.removeStock(stockName, quantity);
+            if (stockMap.containsKey(stockName)) {
+                Stock stock = stockMap.get(stockName);
+                Integer newQuantity = quantity + stock.getAvailableCount();
+                stock.setAvailableCount(newQuantity);
+            }
+            updateStockTopic(stockName, StockEvent.STOCK_BOUGHT);
             client.addFunds(
                     this.getCurrentStockPrice(stockName).multiply(BigDecimal.valueOf(quantity))
             );
         } catch (JMSException e) {
             logger.log(Level.SEVERE, "Error processing sell stock", e);
+            throw e;
         }
     }
 
     public synchronized Stock buyStock(Client client, String stockName, Integer quantity) throws JMSException {
-        if (stockList.containsKey(stockName)) {
-            Stock stock = stockList.get(stockName);
+        if (stockMap.containsKey(stockName)) {
+            Stock stock = stockMap.get(stockName);
             if (quantity <= stock.getAvailableCount()) {
 
                 if (client.getFunds().compareTo(
@@ -164,6 +216,7 @@ public class SimpleBroker {
                     Integer newQuantity = quantity - stock.getAvailableCount();
                     stock.setAvailableCount(newQuantity);
                     Stock boughtStock = new Stock(stockName, quantity, this.getCurrentStockPrice(stockName));
+                    updateStockTopic(boughtStock, StockEvent.STOCK_BOUGHT);
                     return boughtStock;
                 }
             }
@@ -173,7 +226,7 @@ public class SimpleBroker {
     }
 
     public BigDecimal getCurrentStockPrice(String stockName) {
-        return stockList.get(stockName).getPrice();
+        return stockMap.get(stockName).getPrice();
     }
 
     public synchronized int deregisterClient(String clientName) throws JMSException {
@@ -187,7 +240,7 @@ public class SimpleBroker {
     public synchronized String getInfoOnSingleStock(Stock stock) throws JMSException {
         return stock.toString();
     }
-    public synchronized List<Stock> getStockList() {
-        return new ArrayList<>(this.stockList.values());
+    public synchronized List<Stock> getStockMap() {
+        return new ArrayList<>(this.stockMap.values());
     }
 }

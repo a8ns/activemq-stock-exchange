@@ -79,6 +79,9 @@ public class JmsBrokerClient {
                     logger.log( Level.INFO,"Stock: " + stock.toString());
                 });
             }
+        } else if (message instanceof TextMessage) {
+            TextMessage textMessage = (TextMessage) message;
+            logger.log( Level.INFO,"Received TextMessage: " + textMessage.getText());
         }
     }
 
@@ -89,7 +92,7 @@ public class JmsBrokerClient {
 
         Queue registrationQueue = session.createQueue(registrationQueueName);
         MessageProducer registrationProducer = session.createProducer(registrationQueue);
-        Queue replyQueue = session.createQueue(clientName + "-reply");
+        Queue replyQueue = session.createQueue(clientName + "-registration-reply-queue");
         MessageConsumer registrationConsumer = session.createConsumer(replyQueue);
 
         ObjectMessage request = session.createObjectMessage(registerMessage);
@@ -121,11 +124,17 @@ public class JmsBrokerClient {
     }
     
     public void buy(String stockName, int amount) throws JMSException {
-        //TODO
+        BuyMessage buyMessage = new BuyMessage(stockName, amount);
+        ObjectMessage request = session.createObjectMessage(buyMessage);
+        producer.send(request);
+        logger.log(Level.FINE,"Requesting buy sent: " + stockName + " , amount: " + amount);
     }
     
     public void sell(String stockName, int amount) throws JMSException {
-        //TODO
+        SellMessage sellMessage = new SellMessage(stockName, amount);
+        ObjectMessage request = session.createObjectMessage(sellMessage);
+        producer.send(request);
+        logger.log(Level.FINE,"Requesting sell sent");
     }
     
     public void watch(String stockName) throws JMSException {

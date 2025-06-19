@@ -7,7 +7,6 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -23,9 +22,10 @@ public class Client {
     private Map<String, Stock> stocks = new HashMap<>();
     private BigDecimal funds;
     private SimpleBroker broker;
-    public Client(SimpleBroker broker, String clientName, Session session) throws JMSException {
+    public Client(SimpleBroker broker, String clientName, Session session, BigDecimal funds) throws JMSException {
         this.broker = broker;
         this.clientName = clientName;
+        this.funds = funds;
         this.session = session;
 
         this.incomingQueue = session.createQueue(clientName + "ToBroker");
@@ -74,7 +74,7 @@ public class Client {
                     switch (msgType) {
                         case STOCK_LIST:
                             logger.log(Level.FINE, "Listing stocks for: " + client.getClientName());
-                            ListMessage listMessage = new ListMessage(broker.getStockList());
+                            ListMessage listMessage = new ListMessage(broker.getStockMap());
                             ObjectMessage request = session.createObjectMessage(listMessage);
                             logger.log(Level.FINE, "About to send list message");
                             producer.send(request);
@@ -83,21 +83,43 @@ public class Client {
                             broker.deregisterClient(client.getClientName());
                             break;
                         case STOCK_BUY:
-                            BuyMessage buyMessage = (BuyMessage) msg;
-                            Stock boughtStock = broker.buyStock(this, buyMessage.getStockName(),  buyMessage.getAmount());
-                            addStock(boughtStock.getName(), boughtStock.getStockCount(), boughtStock.getPrice());
+                            logger.log(Level.FINE, "Buy stock request received from : " + client.getClientName());
+
+                            if (brokerMessage instanceof BuyMessage) {
+                                Stock boughtStock = broker.buyStock(this, ((BuyMessage) brokerMessage).getStockName(),
+                                                                            ((BuyMessage) brokerMessage).getAmount());
+                                addStock(boughtStock.getName(), boughtStock.getStockCount(), boughtStock.getPrice());
+                                String buyConfirmationPayload = "Confirmation: " + boughtStock.getStockCount() +
+                                        " stocks of " + boughtStock.getName() + " bought. Price: " + boughtStock.getPrice();
+                                producer.send(session.createTextMessage(buyConfirmationPayload));
+                            }
+
                             break;
                         case STOCK_SELL:
-                            SellMessage sell = (SellMessage) brokerMessage;
-                            String stockNameForSell = sell.getStockName();
-                            Integer amount = sell.getAmount();
-                            broker.sellStock(this, stockNameForSell, amount);
+                            logger.log(Level.FINE, "Sell stock request received from : " + client.getClientName());
+                            if (brokerMessage instanceof SellMessage) {
+                                String stockNameForSell = ((SellMessage) brokerMessage).getStockName();
+                                Integer amount = ((SellMessage) brokerMessage).getAmount();
+                                try {
+                                    broker.sellStock(this, stockNameForSell, amount);
+
+                                String sellConfirmationPayload = "Confirmation: " + amount + " stocks of "
+                                        + stockNameForSell + " sold. Price: TODO " ; // TODO: retrieve proper price
+                                producer.send(session.createTextMessage(sellConfirmationPayload));
+                                } catch (JMSException e) {
+                                    String sellConfirmationPayload = "Refusal:  Stock count exceeded available stock count\n";
+                                    producer.send(session.createTextMessage(sellConfirmationPayload));
+                                    throw e;
+                                }
+                            }
+
+
                             break;
                         case STOCK_WATCH:
-                            // TODO
+                            // TODO?
                             break;
                         case STOCK_UNWATCH:
-                            // TODO
+                            // TODO?
                             break;
                         default:
 
@@ -163,6 +185,8 @@ public class Client {
                 logger.log(Level.SEVERE, "Stock count exceeded available stock count");
             }
         }
+        logger.log(Level.SEVERE, "Stock count exceeded available stock count");
+        throw new JMSException("Stock count exceeded available stock count");
 
 
     }
