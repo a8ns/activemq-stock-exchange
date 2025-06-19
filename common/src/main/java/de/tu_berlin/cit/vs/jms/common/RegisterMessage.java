@@ -18,4 +18,7 @@ public class RegisterMessage extends BrokerMessage {
     public String getClientName() {
         return clientName;
     }
+    public BigDecimal getInitialAmount() {
+        return initialAmount;
+    }
 }
