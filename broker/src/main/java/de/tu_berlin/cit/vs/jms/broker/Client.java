@@ -5,7 +5,9 @@ import de.tu_berlin.cit.vs.jms.common.*;
 import javax.jms.*;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -72,6 +74,23 @@ public class Client {
                     BrokerMessage brokerMessage = (BrokerMessage) obj;
                     BrokerMessage.Type msgType = brokerMessage.getType();
                     switch (msgType) {
+                        case STOCK_INFO:
+                            if (brokerMessage instanceof RequestInfoMessage) {
+                                RequestInfoMessage rim = (RequestInfoMessage) brokerMessage;
+                                InfoMessage listMessage = new InfoMessage(broker.getStocks().get(rim.getStockName()));
+                                ObjectMessage request = session.createObjectMessage(listMessage);
+                                logger.log(Level.FINE, "About to send info message");
+                                producer.send(request);
+                            }
+                            break;
+                        case STOCK_PROFILE:
+                            String clientName = client.getClientName();
+                            BigDecimal funds = client.getFunds();
+                            List<Stock> stocks = new ArrayList<>(client.getClientStocks().values());
+                            ProfileMessage profileMessage = new ProfileMessage(clientName, funds, stocks);
+                            logger.log(Level.FINE, "About to send profile message");
+                            producer.send(session.createObjectMessage(profileMessage));
+                            break;
                         case STOCK_LIST:
                             logger.log(Level.FINE, "Listing stocks for: " + client.getClientName());
                             ListMessage listMessage = new ListMessage(broker.getStockMap());
@@ -112,7 +131,6 @@ public class Client {
                                     throw e;
                                 }
                             }
-
 
                             break;
                         case STOCK_WATCH:
@@ -187,7 +205,6 @@ public class Client {
         }
         logger.log(Level.SEVERE, "Stock count exceeded available stock count");
         throw new JMSException("Stock count exceeded available stock count");
-
 
     }
 

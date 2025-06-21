@@ -243,4 +243,8 @@ public class SimpleBroker {
     public synchronized List<Stock> getStockMap() {
         return new ArrayList<>(this.stockMap.values());
     }
+
+    public synchronized Map<String, Stock> getStocks() {
+        return this.stockMap;
+    }
 }

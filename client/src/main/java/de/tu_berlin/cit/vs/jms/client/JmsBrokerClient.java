@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.jms.*;
@@ -76,12 +77,30 @@ public class JmsBrokerClient {
             if (responseData instanceof ListMessage) {
                 ListMessage listResponse = (ListMessage) responseData;
                 listResponse.getStocks().forEach(stock -> {
-                    logger.log( Level.INFO,"Stock: " + stock.toString());
+                    logger.log(Level.INFO, "Stock: " + stock.toString());
                 });
+            }
+            else if (responseData instanceof InfoMessage) {
+                InfoMessage infoResponse = (InfoMessage) responseData;
+                logger.log(Level.INFO, "Stock: " + infoResponse.getInfo().toString());
+            }
+            else if (responseData instanceof ProfileMessage) {
+                ProfileMessage profileResponse = (ProfileMessage) responseData;
+                logger.log(Level.INFO, "Client Name: " + profileResponse.getClientName());
+                logger.log(Level.INFO, "Funds: " + profileResponse.getFunds());
+                logger.log(Level.INFO, "Owned stocks:");
+                List<Stock> stocks = profileResponse.getStocks();
+                if (!stocks.isEmpty()) {
+                    stocks.forEach(stock -> {
+                        logger.log(Level.INFO, "Stock: " + stock.toString());
+                    });
+                } else {
+                    logger.log(Level.INFO, "-- None --");
+                }
             }
         } else if (message instanceof TextMessage) {
             TextMessage textMessage = (TextMessage) message;
-            logger.log( Level.INFO,"Received TextMessage: " + textMessage.getText());
+            logger.log(Level.INFO,"Received TextMessage: " + textMessage.getText());
         }
     }
 
@@ -113,14 +132,27 @@ public class JmsBrokerClient {
         }
         throw new JMSException("Could not receive registration response");
 
-
-
     }
+
+    public void profile() throws JMSException {
+        RequestProfileMessage profileMessage = new RequestProfileMessage();
+        ObjectMessage request = session.createObjectMessage(profileMessage);
+        producer.send(request);
+        logger.log(Level.FINE,"Requesting profile sent");
+    }
+
     public void requestList() throws JMSException {
         RequestListMessage listMessage = new RequestListMessage();
         ObjectMessage request = session.createObjectMessage(listMessage);
         producer.send(request);
         logger.log(Level.FINE,"Requesting list sent");
+    }
+
+    public void info(String stockName) throws JMSException {
+        RequestInfoMessage infoMessage = new RequestInfoMessage(stockName);
+        ObjectMessage request = session.createObjectMessage(infoMessage);
+        producer.send(request);
+        logger.log(Level.FINE,"Requesting info of " + stockName + " sent");
     }
     
     public void buy(String stockName, int amount) throws JMSException {
@@ -203,9 +235,31 @@ public class JmsBrokerClient {
                                 System.out.println("Correct usage: watch [stock]");
                             }
                             break;
+                        case "info":
+                            if(task.length == 2) {
+                                client.info(task[1]);
+                            } else {
+                                System.out.println("Correct usage: info [stock]");
+                            }
+                            break;
+                        case "profile":
+                            client.profile();
+                            break;
+                        case "help":
+                            System.out.println(String.join("\n",
+                                                           "Available Commands:",
+                                                           "help - Shows this overview of commands",
+                                                           "profile - Shows the name, amount of money and stocks this client has",
+                                                           "list - Shows all available stocks, their max amount and price",
+                                                           "info [stock] - Shows the max amount available of [stock]",
+                                                           "buy [stock] [amount] - Buys [amount] of [stock]",
+                                                           "sell [stock] [amount] - Sells [amount] of [stock]",
+                                                           "watch [stock] - Watches the changes to [stock]",
+                                                           "unwatch [stock] - Unwatches [stock]",
+                                                           "quit - Terminates the client and unregisters it from the broker"));
+                            break;
                         default:
-                            System.out.println("Unknown command. Try one of:");
-                            System.out.println("quit, list, buy, sell, watch, unwatch");
+                            System.out.println("Unknown command. Try 'help' to see available commands.");
                     }
                 }
             }

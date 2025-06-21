@@ -23,6 +23,8 @@ public abstract class BrokerMessage implements Serializable {
         STOCK_UNWATCH,
         STOCK_LIST,
         STOCK_BUY,
-        STOCK_SELL
+        STOCK_SELL,
+        STOCK_INFO,
+        STOCK_PROFILE
     }
 }
