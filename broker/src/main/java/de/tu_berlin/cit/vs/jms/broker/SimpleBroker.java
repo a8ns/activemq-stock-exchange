@@ -168,11 +168,7 @@ public class SimpleBroker {
         clients.clear();
         if (this.session != null) this.session.close();
         if (this.con != null) this.con.close();
-
     }
-
-
-
 
     public synchronized int registerClient(String clientName, Session session, BigDecimal funds) throws JMSException {
         // check if client exists
@@ -205,22 +201,26 @@ public class SimpleBroker {
         }
     }
 
-    public synchronized Stock buyStock(Client client, String stockName, Integer quantity) throws JMSException {
+    public synchronized Stock buyStock(Client client, String stockName, Integer quantity) throws JMSException, InsufficientFundsException {
         if (stockMap.containsKey(stockName)) {
             Stock stock = stockMap.get(stockName);
             if (quantity <= stock.getAvailableCount()) {
-
-                if (client.getFunds().compareTo(
-                        BigDecimal.valueOf(quantity).multiply(this.getCurrentStockPrice(stockName))
-                ) >= 0) {                 // check if enough funds with client
-                    Integer newQuantity = quantity - stock.getAvailableCount();
-                    stock.setAvailableCount(newQuantity);
-                    Stock boughtStock = new Stock(stockName, quantity, this.getCurrentStockPrice(stockName));
-                    updateStockTopic(boughtStock, StockEvent.STOCK_BOUGHT);
-                    return boughtStock;
+                BigDecimal cost = BigDecimal.valueOf(quantity).multiply(this.getCurrentStockPrice(stockName));
+                if (client.getFunds().compareTo(cost) >= 0) { // check if enough funds with client
+                    try {
+                        client.removeFunds(cost);
+                        Integer newQuantity = stock.getAvailableCount() - quantity;
+                        stock.setAvailableCount(newQuantity);
+                        Stock boughtStock = new Stock(stockName, quantity, this.getCurrentStockPrice(stockName));
+                        updateStockTopic(boughtStock, StockEvent.STOCK_BOUGHT);
+                        return boughtStock;
+                    } catch (InsufficientFundsException e) {
+                        throw new InsufficientFundsException("Not enough funds to buy " + quantity + " stocks of " + stockName);
+                    }
                 }
+                throw new InsufficientFundsException("Not enough funds to buy " + quantity + " stocks of " + stockName);
             }
-            throw new IllegalArgumentException("Requested stock quantity for " + stockName + " is not available");
+            throw new IllegalArgumentException("Requested stock quantity for " + stockName + " is not available. (Available: " + stock.getAvailableCount() + ")");
         }
         throw new IllegalArgumentException("Stock " + stockName + " does not exist");
     }

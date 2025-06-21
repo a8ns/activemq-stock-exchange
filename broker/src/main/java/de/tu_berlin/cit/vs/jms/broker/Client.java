@@ -105,12 +105,19 @@ public class Client {
                             logger.log(Level.FINE, "Buy stock request received from : " + client.getClientName());
 
                             if (brokerMessage instanceof BuyMessage) {
-                                Stock boughtStock = broker.buyStock(this, ((BuyMessage) brokerMessage).getStockName(),
-                                                                            ((BuyMessage) brokerMessage).getAmount());
-                                addStock(boughtStock.getName(), boughtStock.getStockCount(), boughtStock.getPrice());
-                                String buyConfirmationPayload = "Confirmation: " + boughtStock.getStockCount() +
+                                BuyMessage bm = (BuyMessage) brokerMessage;
+                                try {
+                                    logger.log(Level.FINE, "Sending Buy Confirmation for : " + client.getClientName());
+                                    Stock boughtStock = broker.buyStock(this, bm.getStockName(), bm.getAmount());
+                                    addStock(boughtStock.getName(), boughtStock.getStockCount(), boughtStock.getPrice());
+                                    String buyConfirmationPayload = "Confirmation: " + boughtStock.getStockCount() +
                                         " stocks of " + boughtStock.getName() + " bought. Price: " + boughtStock.getPrice();
-                                producer.send(session.createTextMessage(buyConfirmationPayload));
+                                    producer.send(session.createTextMessage(buyConfirmationPayload));
+                                } catch (Exception e) {
+                                    logger.log(Level.FINE, "Sending Buy Refusal for : " + client.getClientName());
+                                    String buyRefusalPayload = "Refusal: " + e.getMessage();
+                                    producer.send(session.createTextMessage(buyRefusalPayload));
+                                }
                             }
 
                             break;
@@ -120,14 +127,16 @@ public class Client {
                                 String stockNameForSell = ((SellMessage) brokerMessage).getStockName();
                                 Integer amount = ((SellMessage) brokerMessage).getAmount();
                                 try {
+                                    logger.log(Level.FINE, "Sending Sell Confirmation for : " + client.getClientName());
                                     broker.sellStock(this, stockNameForSell, amount);
-
-                                String sellConfirmationPayload = "Confirmation: " + amount + " stocks of "
+                                    String sellConfirmationPayload = "Confirmation: " + amount + " stocks of "
                                         + stockNameForSell + " sold. Price: TODO " ; // TODO: retrieve proper price
-                                producer.send(session.createTextMessage(sellConfirmationPayload));
-                                } catch (JMSException e) {
-                                    String sellConfirmationPayload = "Refusal:  Stock count exceeded available stock count\n";
                                     producer.send(session.createTextMessage(sellConfirmationPayload));
+                                    
+                                } catch (JMSException e) {
+                                    logger.log(Level.FINE, "Sending Sell Refusal for : " + client.getClientName());
+                                    String sellRefusalPayload = "Refusal: Stock count exceeded available stock count";
+                                    producer.send(session.createTextMessage(sellRefusalPayload));
                                     throw e;
                                 }
                             }
@@ -160,23 +169,21 @@ public class Client {
         this.funds = this.funds.add(funds);
     }
 
-    protected synchronized void removeFunds(BigDecimal funds) throws InsufficientFundsException {
-        if (funds == null || funds.compareTo(BigDecimal.ZERO) <= 0)
+    protected synchronized void removeFunds(BigDecimal cost) throws InsufficientFundsException {
+        if (cost == null || cost.compareTo(BigDecimal.ZERO) <= 0)
             throw new IllegalArgumentException("Invalid Requested funds amount");
 
         if (this.funds == null) throw new InsufficientFundsException("Account has no funds available");
 
-        if (this.funds.compareTo(funds) < 0)
-            throw new InsufficientFundsException("Insufficient funds: available: " + this.funds + ", requested: " + funds);
+        if (this.funds.compareTo(cost) < 0)
+            throw new InsufficientFundsException("Insufficient funds: available: " + this.funds + ", requested: " + cost);
 
-        this.funds = this.funds.subtract(funds);
+        this.funds = this.funds.subtract(cost);
     }
-
 
     protected BigDecimal getFunds() {
         return funds;
     }
-
 
     protected synchronized void addStock(String stockName, Integer quantity, BigDecimal price) throws JMSException {
         if (stocks.containsKey(stockName)) {
@@ -195,17 +202,17 @@ public class Client {
             if (quantity <= stock.getStockCount()) {
                 Integer newQuantity = stock.getStockCount() - quantity;
                 if (newQuantity == 0) {
-                    stocks.remove(stock);
+                    stocks.remove(stockName);
                 } else {
                     stock.setStockCount(newQuantity);
                 }
             } else {
                 logger.log(Level.SEVERE, "Stock count exceeded available stock count");
             }
+        } else {
+            logger.log(Level.SEVERE, "Client has no stocks of this type");
+            throw new JMSException("Client has no stocks of this type");
         }
-        logger.log(Level.SEVERE, "Stock count exceeded available stock count");
-        throw new JMSException("Stock count exceeded available stock count");
-
     }
 
     protected Map<String, Stock> getClientStocks() {

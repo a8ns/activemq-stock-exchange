@@ -82,7 +82,7 @@ public class JmsBrokerClient {
             }
             else if (responseData instanceof InfoMessage) {
                 InfoMessage infoResponse = (InfoMessage) responseData;
-                logger.log(Level.INFO, "Stock: " + infoResponse.getInfo().toString());
+                logger.log(Level.INFO, "Stock: " + infoResponse.getInfo().getName() + ", max. Amount: " + infoResponse.getInfo().getStockCount());
             }
             else if (responseData instanceof ProfileMessage) {
                 ProfileMessage profileResponse = (ProfileMessage) responseData;
@@ -92,7 +92,7 @@ public class JmsBrokerClient {
                 List<Stock> stocks = profileResponse.getStocks();
                 if (!stocks.isEmpty()) {
                     stocks.forEach(stock -> {
-                        logger.log(Level.INFO, "Stock: " + stock.toString());
+                        logger.log(Level.INFO, "-- Stock: " + stock.getName() + ", Amount: " + stock.getStockCount());
                     });
                 } else {
                     logger.log(Level.INFO, "-- None --");
@@ -159,7 +159,7 @@ public class JmsBrokerClient {
         BuyMessage buyMessage = new BuyMessage(stockName, amount);
         ObjectMessage request = session.createObjectMessage(buyMessage);
         producer.send(request);
-        logger.log(Level.FINE,"Requesting buy sent: " + stockName + " , amount: " + amount);
+        logger.log(Level.FINE,"Requesting buy sent: " + stockName + ", amount: " + amount);
     }
     
     public void sell(String stockName, int amount) throws JMSException {
