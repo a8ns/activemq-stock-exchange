@@ -201,7 +201,23 @@ public class JmsBrokerClient {
     }
 
     public void quit() throws JMSException {
-        //TODO: deregister from Broker
+        // Close consumers and producers first
+        if (messageConsumer != null) messageConsumer.close();
+        if (messageProducer != null) messageProducer.close();
+
+        for (MessageConsumer consumer : topicConsumer.values()) {
+            consumer.close();
+        }
+        topicConsumer.clear();
+
+        if (session != null) session.close();
+        if (con != null) con.close();
+
+        logger.log(Level.INFO, "Client disconnected. Queues remain on broker.");
+
+        UnregisterMessage unregisterMessage = new UnregisterMessage(clientName);
+        ObjectMessage request = session.createObjectMessage(unregisterMessage);
+        messageProducer.send(request);
     }
 
     /**

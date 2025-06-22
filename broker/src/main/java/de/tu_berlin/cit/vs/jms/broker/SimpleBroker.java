@@ -231,6 +231,7 @@ public class SimpleBroker {
 
     public synchronized int deregisterClient(String clientName) throws JMSException {
         if( this.clients.containsKey(clientName) ) {
+            this.clients.get(clientName).cleanup();
             this.clients.remove(clientName);
             return 0;
         }

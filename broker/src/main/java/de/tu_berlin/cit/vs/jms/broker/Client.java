@@ -218,7 +218,7 @@ public class Client {
             if (consumer != null) {
                 consumer.close();
             }
-
+            stocks.clear();
         } catch (JMSException e) {
             logger.log(Level.SEVERE, "Error cleaning up client", e);
         }
