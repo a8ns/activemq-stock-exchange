@@ -72,15 +72,15 @@ public class SimpleBroker {
 
                 break;
             case STOCK_SOLD:
-                payload = stock.getName() + " is " + "sold";
+                payload = "some of " + stock.getName() + " stock is bought. Remaining: "  + stock.getAvailableCount();
                 break;
             case STOCK_BOUGHT:
-                payload = stock.getName() + " is " + "bought";
+                payload = "some of " + stock.getName() + " stock is sold. Remaining: "  + stock.getAvailableCount();;
                 break;
             default:
                 break;
         }
-        if (payload != "") {
+        if (!payload.isEmpty()) {
             Message message = session.createTextMessage(payload);
             if (topicProducers.containsKey(stock.getName())) {
                 topicProducers.get(stock.getName()).send(message);
@@ -97,15 +97,15 @@ public class SimpleBroker {
                 }
                 break;
             case STOCK_SOLD:
-                payload = stockName + " is " + "sold";
+                payload = "some of " + stockName + " stock is sold by client. Remaining: "  + stockName;;
                 break;
             case STOCK_BOUGHT:
-                payload = stockName + " is " + "bought";
+                payload =  "some of " + stockName + " stock is bought by client. Remaining: "  + stockName;;
                 break;
             default:
                 break;
         }
-        if (payload != "") {
+        if (!payload.isEmpty()) {
             Message message = session.createTextMessage(payload);
             if (topicProducers.containsKey(stockName)) {
                 topicProducers.get(stockName).send(message);
@@ -189,13 +189,12 @@ public class SimpleBroker {
 
     public synchronized void sellStock(Client client, String stockName, Integer quantity) throws JMSException {
         try {
-            client.removeStock(stockName, quantity);
             if (stockMap.containsKey(stockName)) {
                 Stock stock = stockMap.get(stockName);
                 Integer newQuantity = quantity + stock.getAvailableCount();
                 stock.setAvailableCount(newQuantity);
             }
-            updateStockTopic(stockName, StockEvent.STOCK_BOUGHT);
+            updateStockTopic(stockName, StockEvent.STOCK_SOLD);
             client.addFunds(
                     this.getCurrentStockPrice(stockName).multiply(BigDecimal.valueOf(quantity))
             );
@@ -213,14 +212,15 @@ public class SimpleBroker {
                 if (client.getFunds().compareTo(
                         BigDecimal.valueOf(quantity).multiply(this.getCurrentStockPrice(stockName))
                 ) >= 0) {                 // check if enough funds with client
-                    Integer newQuantity = quantity - stock.getAvailableCount();
+                    int newQuantity = stock.getAvailableCount() - quantity;
                     stock.setAvailableCount(newQuantity);
-                    Stock boughtStock = new Stock(stockName, quantity, this.getCurrentStockPrice(stockName));
-                    updateStockTopic(boughtStock, StockEvent.STOCK_BOUGHT);
-                    return boughtStock;
+                    updateStockTopic(stock, StockEvent.STOCK_BOUGHT);
+                    logger.log(Level.FINE,  "Sold " + quantity + " stock of " + stock.getName() + ", remain: "+ stock.getAvailableCount());
+                    return new Stock(stockName, quantity, this.getCurrentStockPrice(stockName));
                 }
+                throw new IllegalArgumentException("Not enough fund to make the purchase");
             }
-            throw new IllegalArgumentException("Requested stock quantity for " + stockName + " is not available");
+            throw new IllegalArgumentException("Asked quantity is exceeding available amount for " + stockName);
         }
         throw new IllegalArgumentException("Stock " + stockName + " does not exist");
     }
@@ -231,6 +231,7 @@ public class SimpleBroker {
 
     public synchronized int deregisterClient(String clientName) throws JMSException {
         if( this.clients.containsKey(clientName) ) {
+            this.clients.get(clientName).cleanup();
             this.clients.remove(clientName);
             return 0;
         }

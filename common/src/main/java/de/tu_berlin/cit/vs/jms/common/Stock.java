@@ -6,13 +6,13 @@ import java.math.BigDecimal;
 
 public class Stock implements Serializable {
     private String name;
-    private int stockCount;
+    private int maxStockCount;
     private int availableCount;
     private BigDecimal price;
     
-    public Stock(String name, int stockCount, BigDecimal price) {
-        this.stockCount = stockCount;
-        this.availableCount = stockCount;
+    public Stock(String name, int maxStockCount, BigDecimal price) {
+        this.maxStockCount = maxStockCount;
+        this.availableCount = maxStockCount;
         this.name = name;
         this.price = price;
     }
@@ -25,12 +25,12 @@ public class Stock implements Serializable {
         this.name = name;
     }
 
-    public int getStockCount() {
-        return stockCount;
+    public int getMaxStockCount() {
+        return maxStockCount;
     }
 
-    public void setStockCount(int stockCount) {
-        this.stockCount = stockCount;
+    public void setMaxStockCount(int maxStockCount) {
+        this.maxStockCount = maxStockCount;
     }
 
     public int getAvailableCount() {
@@ -54,6 +54,6 @@ public class Stock implements Serializable {
         return "" + getName() +
                 " -- price: " + getPrice() +
                 " -- available: " + getAvailableCount() +
-                " -- sum: " + getStockCount();
+                " -- sum: " + getMaxStockCount();
     }
 }
