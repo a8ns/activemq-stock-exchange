@@ -14,7 +14,6 @@ import javax.jms.*;
 
 import de.tu_berlin.cit.vs.jms.common.*;
 import org.apache.activemq.ActiveMQConnectionFactory;
-import org.slf4j.LoggerFactory;
 
 
 public class JmsBrokerClient {
@@ -187,7 +186,7 @@ public class JmsBrokerClient {
             }
         } else if (message instanceof TextMessage) {
             TextMessage textMessage = (TextMessage) message;
-            logger.log(Level.INFO,"Received TextMessage: " + textMessage.getText());
+            logger.log(Level.INFO,"Topic Update: " + textMessage.getText());
         }
     }
 

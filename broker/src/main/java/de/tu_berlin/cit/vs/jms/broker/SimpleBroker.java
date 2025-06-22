@@ -45,7 +45,7 @@ public class SimpleBroker {
 
         MessageListener registrationListener = message -> {
             try {
-                logger.log(Level.INFO, "Received JMS Message ");
+                logger.log(Level.FINE, "Received JMS Message ");
                 processRegistration(message);
             } catch (JMSException e) {
                 logger.log(Level.SEVERE, "Error processing registration", e);
@@ -55,8 +55,6 @@ public class SimpleBroker {
 
 
         for(String stockName : stockExchange.getStockMap().keySet()) {
-            /* WIP: prepare stocks as topics */
-
             Topic topic = session.createTopic(stockName);
             topicMap.put(stockName, topic);
             topicProducers.put(stockName, session.createProducer(topic));
@@ -68,13 +66,13 @@ public class SimpleBroker {
         String payload = "";
         switch(stockEvent) {
             case STOCK_PRICE_CHANGED:
-                payload = "New price for " + stock.getName() + " is " + stock.getPrice();
+                payload = "Price Update for " + stock.getName() + ". Current price: " + stock.getPrice();
                 break;
             case STOCK_SOLD:
-                payload = "some of " + stock.getName() + " stock is bought. Remaining: "  + stock.getAvailableCount();
+                payload = stock.getName() + " stock has been sold by a client. Available: "  + stock.getAvailableCount();
                 break;
             case STOCK_BOUGHT:
-                payload = "some of " + stock.getName() + " stock is sold. Remaining: "  + stock.getAvailableCount();;
+                payload = stock.getName() + " stock is bought by a client. Available: "  + stock.getAvailableCount();
                 break;
             default:
                 break;
@@ -87,19 +85,20 @@ public class SimpleBroker {
         }
     }
 
+
     private void updateStockTopic(String stockName, StockEvent stockEvent) throws JMSException {
         String payload = "";
         switch(stockEvent) {
             case STOCK_PRICE_CHANGED:
                 if (stockExchange.getStockMap().containsKey(stockName)) {
-                    payload = "New price for " + stockName + " is " + stockExchange.getStockMap().get(stockName).getPrice();
+                    payload = "Price Update for " + stockName + ". Current price: " + stockExchange.getStockMap().get(stockName).getPrice();
                 }
                 break;
             case STOCK_SOLD:
-                payload = "some of " + stockName + " stock is sold by client. Remaining: "  + stockName;;
+                payload = stockName + " stock has been sold by a client. Available: "  + stockName;;
                 break;
             case STOCK_BOUGHT:
-                payload =  "some of " + stockName + " stock is bought by client. Remaining: "  + stockName;;
+                payload =  stockName + " stock is bought by a client. Available: "  + stockName;;
                 break;
             default:
                 break;
