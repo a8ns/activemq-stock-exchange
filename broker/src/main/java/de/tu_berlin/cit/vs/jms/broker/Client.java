@@ -93,7 +93,7 @@ public class Client {
                             break;
                         case STOCK_LIST:
                             logger.log(Level.FINE, "Listing stocks for: " + client.getClientName());
-                            ListMessage listMessage = new ListMessage(broker.getStockMap());
+                            ListMessage listMessage = new ListMessage(broker.getStockExchangeMap());
                             ObjectMessage request = session.createObjectMessage(listMessage);
                             logger.log(Level.FINE, "About to send list message");
                             producer.send(request);

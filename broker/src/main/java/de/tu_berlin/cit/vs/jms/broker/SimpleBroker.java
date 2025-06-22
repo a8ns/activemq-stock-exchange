@@ -21,12 +21,12 @@ public class SimpleBroker {
     Queue registrationQueue;
     MessageConsumer registrationConsumer;
     private MessageProducer replyOnceProducer;
-    Map<String, Stock> stockMap = new HashMap<>();
+    StockExchange stockExchange;
     Map<String, Topic> topicMap = new HashMap<>();
     Map<String, MessageProducer> topicProducers = new HashMap<>();
 
-    public SimpleBroker(Map<String, Stock> stockList) throws JMSException {
-        this.stockMap = stockList;
+    public SimpleBroker(StockExchange stockExchange) throws JMSException {
+        this.stockExchange = stockExchange;
         ActiveMQConnectionFactory conFactory = new ActiveMQConnectionFactory("tcp://localhost:61616");
         conFactory.setTrustedPackages(Arrays.asList(
                 "de.tu_berlin.cit.vs.jms.common",
@@ -54,7 +54,7 @@ public class SimpleBroker {
         registrationConsumer.setMessageListener(registrationListener);
 
 
-        for(String stockName : stockList.keySet()) {
+        for(String stockName : stockExchange.getStockMap().keySet()) {
             /* WIP: prepare stocks as topics */
 
             Topic topic = session.createTopic(stockName);
@@ -91,8 +91,8 @@ public class SimpleBroker {
         String payload = "";
         switch(stockEvent) {
             case STOCK_PRICE_CHANGED:
-                if (stockMap.containsKey(stockName)) {
-                    payload = "New price for " + stockName + " is " + stockMap.get(stockName).getPrice();
+                if (stockExchange.getStockMap().containsKey(stockName)) {
+                    payload = "New price for " + stockName + " is " + stockExchange.getStockMap().get(stockName).getPrice();
                 }
                 break;
             case STOCK_SOLD:
@@ -184,9 +184,9 @@ public class SimpleBroker {
 
     public synchronized void sellStock(Client client, String stockName, Integer quantity) throws JMSException {
         try {
-            if (stockMap.containsKey(stockName)) {
+            if (stockExchange.getStockMap().containsKey(stockName)) {
                 client.removeStock(stockName, quantity);
-                Stock stock = stockMap.get(stockName);
+                Stock stock = stockExchange.getStockMap().get(stockName);
                 Integer newQuantity = quantity + stock.getAvailableCount();
                 stock.setAvailableCount(newQuantity);
             }
@@ -200,9 +200,9 @@ public class SimpleBroker {
         }
     }
 
-    public synchronized Stock buyStock(Client client, String stockName, Integer quantity) throws JMSException, InsufficientFundsException {
-        if (stockMap.containsKey(stockName)) {
-            Stock stock = stockMap.get(stockName);
+    public synchronized Stock buyStock(Client client, String stockName, Integer quantity) throws JMSException {
+        if (stockExchange.getStockMap().containsKey(stockName)) {
+            Stock stock = stockExchange.getStockMap().get(stockName);
             if (quantity <= stock.getAvailableCount()) {
                 BigDecimal cost = BigDecimal.valueOf(quantity).multiply(this.getCurrentStockPrice(stockName));
                 if (client.getFunds().compareTo(cost) >= 0) { // check if enough funds with client
@@ -225,7 +225,7 @@ public class SimpleBroker {
     }
 
     public BigDecimal getCurrentStockPrice(String stockName) {
-        return stockMap.get(stockName).getPrice();
+        return stockExchange.getStockMap().get(stockName).getPrice();
     }
 
     public synchronized int deregisterClient(String clientName) throws JMSException {
@@ -240,11 +240,13 @@ public class SimpleBroker {
     public synchronized String getInfoOnSingleStock(Stock stock) throws JMSException {
         return stock.toString();
     }
-    public synchronized List<Stock> getStockMap() {
-        return new ArrayList<>(this.stockMap.values());
+    public synchronized List<Stock> getStockExchangeMap() {
+        return new ArrayList<>(this.stockExchange.getStockMap().values());
     }
 
     public synchronized Map<String, Stock> getStocks() {
-        return this.stockMap;
+        return this.stockExchange.getStockMap();
     }
+
+
 }

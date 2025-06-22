@@ -19,7 +19,6 @@ import org.slf4j.LoggerFactory;
 
 public class JmsBrokerClient {
     private static final Logger logger = LoggingUtils.getLogger(JmsBrokerClient.class);
-    private static final org.slf4j.Logger log = LoggerFactory.getLogger(JmsBrokerClient.class);
     String registrationQueueName = "broker-registration";
     String clientName;
     Connection con;
@@ -297,6 +296,12 @@ public class JmsBrokerClient {
      * @param args the command line arguments
      */
     public static void main(String[] args) {
+        // TODO:
+        // arg[1] -> name
+        // JmsBrokerClient client = new JmsBrokerClient(clientName);
+        // Thread.sleep(500);
+        // arg[2] -> action
+        //
         try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             System.out.println("Enter the client name:");

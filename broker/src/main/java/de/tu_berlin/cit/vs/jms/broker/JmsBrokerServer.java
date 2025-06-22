@@ -1,5 +1,6 @@
 package de.tu_berlin.cit.vs.jms.broker;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -33,14 +34,17 @@ public class JmsBrokerServer {
             for (String stock : stocks.keySet()) {
                 logger.log(Level.FINE, stock);
             }
+            try {
+                StockExchange stockExchange = new StockExchange(stocks, "historical-prices/stock_prices_5yr.csv");
+                SimpleBroker broker = new SimpleBroker(stockExchange);
+                System.in.read();
+                broker.stop();
+            } catch (Exception e) {
+                throw new Exception("Exception: " + e);
+            }
 
-            SimpleBroker broker = new SimpleBroker(stocks);
-            System.in.read();
-            broker.stop();
 
-        } catch (JMSException ex) {
-            Logger.getLogger(JmsBrokerServer.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IOException ex) {
+        } catch (Exception ex) {
             Logger.getLogger(JmsBrokerServer.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
