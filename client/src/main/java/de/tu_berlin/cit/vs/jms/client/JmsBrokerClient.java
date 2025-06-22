@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.jms.*;
@@ -82,8 +83,67 @@ public class JmsBrokerClient {
             if (responseData instanceof ListMessage) {
                 ListMessage listResponse = (ListMessage) responseData;
                 listResponse.getStocks().forEach(stock -> {
-                    logger.log( Level.INFO,"Stock: " + stock.toString());
+                    logger.log(Level.INFO, "Stock: " + stock.toString());
                 });
+            }
+            else if (responseData instanceof InfoMessage) {
+                InfoMessage infoResponse = (InfoMessage) responseData;
+                logger.log(Level.INFO, "Stock: " + infoResponse.getInfo().getName() + ", max. Amount: " + infoResponse.getInfo().getMaxStockCount());
+            }
+            else if (responseData instanceof ProfileMessage) {
+                ProfileMessage profileResponse = (ProfileMessage) responseData;
+                logger.log(Level.INFO, "Client Name: " + profileResponse.getClientName());
+                logger.log(Level.INFO, "Funds: " + profileResponse.getFunds());
+                logger.log(Level.INFO, "Owned stocks:");
+                List<Stock> stocks = profileResponse.getStocks();
+                if (!stocks.isEmpty()) {
+                    stocks.forEach(stock -> {
+                        logger.log(Level.INFO, "-- Stock: " + stock.getName() + ", Amount: " + stock.getMaxStockCount());
+                    });
+                } else {
+                    logger.log(Level.INFO, "-- None --");
+                }
+            }
+
+            //receive Topic-> (un)subscribe to it
+            if(responseData instanceof TopicMessage) {
+                Topic topic = ((TopicMessage) responseData).getTopic();
+                String topicName = topic.getTopicName();
+                boolean isSetSubscribing = ((TopicMessage) responseData).isSetSubscribing();
+
+                if(isSetSubscribing) {
+                    if(!topicConsumer.containsKey(topicName)) {
+                        logger.log(Level.INFO, "Subscribing to " + topicName);
+                        //create new consumer for each topic.
+                        //MessageListener required for these consumer, so we have this function block from 100-109. Limited to only text messages
+                        MessageConsumer consumer = session.createConsumer(topic);
+                        consumer.setMessageListener(topicMessage -> {
+                            if (topicMessage instanceof TextMessage) {
+                                TextMessage textMessage = (TextMessage) topicMessage;
+                                try {
+                                    logger.log(Level.INFO, "Received TextMessage: " + textMessage.getText());
+                                } catch (JMSException e) {
+                                    logger.log(Level.SEVERE, "Error processing TextMessage", e);
+                                }
+                            } else {
+                                logger.log(Level.SEVERE, "Topic Message is limited to text only. Actual type: " + topicMessage.toString());
+                            }
+                        });
+                        topicConsumer.put(topicName, consumer);
+                        logger.log(Level.FINE, "Subscribed to topic: " + topicName);
+                    } else {
+                        logger.log(Level.INFO, "Already subscribed to " + topicName);
+                    }
+                } else {
+                    if(topicConsumer.containsKey(topicName)) {
+                        logger.log(Level.INFO, "Unsubscribing to " + topicName);
+                        topicConsumer.get(topicName).close();
+                        topicConsumer.remove(topicName);
+                        logger.log(Level.INFO, "Unsubscribed from topic: " + topicName);
+                    } else{
+                        logger.log(Level.INFO, "Client not subscribed to " + topicName);
+                    }
+                }
             }
 
             //receive Topic-> (un)subscribe to it
@@ -128,7 +188,7 @@ public class JmsBrokerClient {
             }
         } else if (message instanceof TextMessage) {
             TextMessage textMessage = (TextMessage) message;
-            logger.log( Level.INFO,"Received TextMessage: " + textMessage.getText());
+            logger.log(Level.INFO,"Received TextMessage: " + textMessage.getText());
         }
     }
 
@@ -162,9 +222,15 @@ public class JmsBrokerClient {
         }
         throw new JMSException("Could not receive registration response");
 
-
-
     }
+
+    public void profile() throws JMSException {
+        RequestProfileMessage profileMessage = new RequestProfileMessage();
+        ObjectMessage request = session.createObjectMessage(profileMessage);
+        messageProducer.send(request);
+        logger.log(Level.FINE,"Requesting profile sent");
+    }
+
     public void requestList() throws JMSException {
         RequestListMessage listMessage = new RequestListMessage();
         ObjectMessage request = session.createObjectMessage(listMessage);
@@ -172,11 +238,18 @@ public class JmsBrokerClient {
         logger.log(Level.FINE,"Requesting list sent");
     }
 
+    public void info(String stockName) throws JMSException {
+        RequestInfoMessage infoMessage = new RequestInfoMessage(stockName);
+        ObjectMessage request = session.createObjectMessage(infoMessage);
+        messageProducer.send(request);
+        logger.log(Level.FINE,"Requesting info of " + stockName + " sent");
+    }
+
     public void buy(String stockName, int amount) throws JMSException {
         BuyMessage buyMessage = new BuyMessage(stockName, amount);
         ObjectMessage request = session.createObjectMessage(buyMessage);
         messageProducer.send(request);
-        logger.log(Level.FINE,"Requesting buy sent: " + stockName + " , amount: " + amount);
+        logger.log(Level.FINE,"Requesting buy sent: " + stockName + ", amount: " + amount);
     }
 
     public void sell(String stockName, int amount) throws JMSException {
@@ -246,9 +319,6 @@ public class JmsBrokerClient {
                         case "list":
                             client.requestList();
                             break;
-                        case "info":
-                            //TODO
-                            break;
                         case "buy":
                             if(task.length == 3) {
                                 client.buy(task[1], Integer.parseInt(task[2]));
@@ -277,9 +347,31 @@ public class JmsBrokerClient {
                                 System.out.println("Correct usage: unwatch [stock]");
                             }
                             break;
+                        case "info":
+                            if(task.length == 2) {
+                                client.info(task[1]);
+                            } else {
+                                System.out.println("Correct usage: info [stock]");
+                            }
+                            break;
+                        case "profile":
+                            client.profile();
+                            break;
+                        case "help":
+                            System.out.println(String.join("\n",
+                                                           "Available Commands:",
+                                                           "help - Shows this overview of commands",
+                                                           "profile - Shows the name, amount of money and stocks this client has",
+                                                           "list - Shows all available stocks, their max amount and price",
+                                                           "info [stock] - Shows the max amount available of [stock]",
+                                                           "buy [stock] [amount] - Buys [amount] of [stock]",
+                                                           "sell [stock] [amount] - Sells [amount] of [stock]",
+                                                           "watch [stock] - Watches the changes to [stock]",
+                                                           "unwatch [stock] - Unwatches [stock]",
+                                                           "quit - Terminates the client and unregisters it from the broker"));
+                            break;
                         default:
-                            System.out.println("Unknown command. Try one of:");
-                            System.out.println("quit, list, info, buy, sell, watch, unwatch");
+                            System.out.println("Unknown command. Try 'help' to see available commands.");
                     }
                 }
                 Thread.sleep(500);

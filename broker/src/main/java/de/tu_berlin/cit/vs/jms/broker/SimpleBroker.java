@@ -69,7 +69,6 @@ public class SimpleBroker {
         switch(stockEvent) {
             case STOCK_PRICE_CHANGED:
                 payload = "New price for " + stock.getName() + " is " + stock.getPrice();
-
                 break;
             case STOCK_SOLD:
                 payload = "some of " + stock.getName() + " stock is bought. Remaining: "  + stock.getAvailableCount();
@@ -168,11 +167,7 @@ public class SimpleBroker {
         clients.clear();
         if (this.session != null) this.session.close();
         if (this.con != null) this.con.close();
-
     }
-
-
-
 
     public synchronized int registerClient(String clientName, Session session, BigDecimal funds) throws JMSException {
         // check if client exists
@@ -190,6 +185,7 @@ public class SimpleBroker {
     public synchronized void sellStock(Client client, String stockName, Integer quantity) throws JMSException {
         try {
             if (stockMap.containsKey(stockName)) {
+                client.removeStock(stockName, quantity);
                 Stock stock = stockMap.get(stockName);
                 Integer newQuantity = quantity + stock.getAvailableCount();
                 stock.setAvailableCount(newQuantity);
@@ -204,23 +200,26 @@ public class SimpleBroker {
         }
     }
 
-    public synchronized Stock buyStock(Client client, String stockName, Integer quantity) throws JMSException {
+    public synchronized Stock buyStock(Client client, String stockName, Integer quantity) throws JMSException, InsufficientFundsException {
         if (stockMap.containsKey(stockName)) {
             Stock stock = stockMap.get(stockName);
             if (quantity <= stock.getAvailableCount()) {
-
-                if (client.getFunds().compareTo(
-                        BigDecimal.valueOf(quantity).multiply(this.getCurrentStockPrice(stockName))
-                ) >= 0) {                 // check if enough funds with client
-                    int newQuantity = stock.getAvailableCount() - quantity;
-                    stock.setAvailableCount(newQuantity);
-                    updateStockTopic(stock, StockEvent.STOCK_BOUGHT);
-                    logger.log(Level.FINE,  "Sold " + quantity + " stock of " + stock.getName() + ", remain: "+ stock.getAvailableCount());
-                    return new Stock(stockName, quantity, this.getCurrentStockPrice(stockName));
+                BigDecimal cost = BigDecimal.valueOf(quantity).multiply(this.getCurrentStockPrice(stockName));
+                if (client.getFunds().compareTo(cost) >= 0) { // check if enough funds with client
+                    try {
+                        client.removeFunds(cost);
+                        Integer newQuantity = stock.getAvailableCount() - quantity;
+                        stock.setAvailableCount(newQuantity);
+                        Stock boughtStock = new Stock(stockName, quantity, this.getCurrentStockPrice(stockName));
+                        updateStockTopic(boughtStock, StockEvent.STOCK_BOUGHT);
+                        return boughtStock;
+                    } catch (InsufficientFundsException e) {
+                        throw new InsufficientFundsException("Not enough funds to buy " + quantity + " stocks of " + stockName);
+                    }
                 }
-                throw new IllegalArgumentException("Not enough fund to make the purchase");
+                throw new InsufficientFundsException("Not enough funds to buy " + quantity + " stocks of " + stockName);
             }
-            throw new IllegalArgumentException("Asked quantity is exceeding available amount for " + stockName);
+            throw new IllegalArgumentException("Requested stock quantity for " + stockName + " is not available. (Available: " + stock.getAvailableCount() + ")");
         }
         throw new IllegalArgumentException("Stock " + stockName + " does not exist");
     }
@@ -243,5 +242,9 @@ public class SimpleBroker {
     }
     public synchronized List<Stock> getStockMap() {
         return new ArrayList<>(this.stockMap.values());
+    }
+
+    public synchronized Map<String, Stock> getStocks() {
+        return this.stockMap;
     }
 }

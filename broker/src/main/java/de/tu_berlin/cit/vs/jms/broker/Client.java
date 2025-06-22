@@ -5,7 +5,9 @@ import de.tu_berlin.cit.vs.jms.common.*;
 import javax.jms.*;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -72,6 +74,23 @@ public class Client {
                     BrokerMessage brokerMessage = (BrokerMessage) obj;
                     BrokerMessage.Type msgType = brokerMessage.getType();
                     switch (msgType) {
+                        case STOCK_INFO:
+                            if (brokerMessage instanceof RequestInfoMessage) {
+                                RequestInfoMessage rim = (RequestInfoMessage) brokerMessage;
+                                InfoMessage listMessage = new InfoMessage(broker.getStocks().get(rim.getStockName()));
+                                ObjectMessage request = session.createObjectMessage(listMessage);
+                                logger.log(Level.FINE, "About to send info message");
+                                producer.send(request);
+                            }
+                            break;
+                        case STOCK_PROFILE:
+                            String clientName = client.getClientName();
+                            BigDecimal funds = client.getFunds();
+                            List<Stock> stocks = new ArrayList<>(client.getClientStocks().values());
+                            ProfileMessage profileMessage = new ProfileMessage(clientName, funds, stocks);
+                            logger.log(Level.FINE, "About to send profile message");
+                            producer.send(session.createObjectMessage(profileMessage));
+                            break;
                         case STOCK_LIST:
                             logger.log(Level.FINE, "Listing stocks for: " + client.getClientName());
                             ListMessage listMessage = new ListMessage(broker.getStockMap());
@@ -106,18 +125,18 @@ public class Client {
                                 String stockNameForSell = ((SellMessage) brokerMessage).getStockName();
                                 Integer amount = ((SellMessage) brokerMessage).getAmount();
                                 try {
+                                    logger.log(Level.FINE, "Sending Sell Confirmation for : " + client.getClientName());
                                     broker.sellStock(this, stockNameForSell, amount);
-
-                                String sellConfirmationPayload = "Confirmation: " + amount + " stocks of "
+                                    String sellConfirmationPayload = "Confirmation: " + amount + " stocks of "
                                         + stockNameForSell + " sold. Price: TODO " ; // TODO: retrieve proper price
-                                producer.send(session.createTextMessage(sellConfirmationPayload));
-                                } catch (JMSException e) {
-                                    String sellConfirmationPayload = "Refusal:  Stock count exceeded available stock count\n";
                                     producer.send(session.createTextMessage(sellConfirmationPayload));
+                                } catch (JMSException e) {
+                                    logger.log(Level.FINE, "Sending Sell Refusal for : " + client.getClientName());
+                                    String sellRefusalPayload = "Refusal: " + e.getMessage();
+                                    producer.send(session.createTextMessage(sellRefusalPayload));
                                     throw e;
                                 }
                             }
-
 
                             break;
                         case STOCK_WATCH:
@@ -157,23 +176,21 @@ public class Client {
         this.funds = this.funds.add(funds);
     }
 
-    protected synchronized void removeFunds(BigDecimal funds) throws InsufficientFundsException {
-        if (funds == null || funds.compareTo(BigDecimal.ZERO) <= 0)
+    protected synchronized void removeFunds(BigDecimal cost) throws InsufficientFundsException {
+        if (cost == null || cost.compareTo(BigDecimal.ZERO) <= 0)
             throw new IllegalArgumentException("Invalid Requested funds amount");
 
         if (this.funds == null) throw new InsufficientFundsException("Account has no funds available");
 
-        if (this.funds.compareTo(funds) < 0)
-            throw new InsufficientFundsException("Insufficient funds: available: " + this.funds + ", requested: " + funds);
+        if (this.funds.compareTo(cost) < 0)
+            throw new InsufficientFundsException("Insufficient funds: available: " + this.funds + ", requested: " + cost);
 
-        this.funds = this.funds.subtract(funds);
+        this.funds = this.funds.subtract(cost);
     }
-
 
     protected BigDecimal getFunds() {
         return funds;
     }
-
 
     protected synchronized void addStock(String stockName, Integer quantity, BigDecimal price) throws JMSException {
         if (stocks.containsKey(stockName)) {
@@ -192,18 +209,18 @@ public class Client {
             if (quantity <= stock.getMaxStockCount()) {
                 Integer newQuantity = stock.getMaxStockCount() - quantity;
                 if (newQuantity == 0) {
-                    stocks.remove(stock);
+                    stocks.remove(stockName);
                 } else {
                     stock.setMaxStockCount(newQuantity);
                 }
             } else {
                 logger.log(Level.SEVERE, "Stock count exceeded available stock count");
+                throw new JMSException("Client has not enough stocks of this type");
             }
+        } else {
+            logger.log(Level.SEVERE, "Client has no stocks of this type");
+            throw new JMSException("Client has no stocks of this type");
         }
-        logger.log(Level.SEVERE, "Stock count exceeded available stock count");
-        throw new JMSException("Stock count exceeded available stock count");
-
-
     }
 
     protected Map<String, Stock> getClientStocks() {
