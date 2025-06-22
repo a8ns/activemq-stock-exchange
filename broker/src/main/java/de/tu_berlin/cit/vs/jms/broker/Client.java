@@ -132,10 +132,9 @@ public class Client {
                                     String sellConfirmationPayload = "Confirmation: " + amount + " stocks of "
                                         + stockNameForSell + " sold. Price: TODO " ; // TODO: retrieve proper price
                                     producer.send(session.createTextMessage(sellConfirmationPayload));
-                                    
                                 } catch (JMSException e) {
                                     logger.log(Level.FINE, "Sending Sell Refusal for : " + client.getClientName());
-                                    String sellRefusalPayload = "Refusal: Stock count exceeded available stock count";
+                                    String sellRefusalPayload = "Refusal: " + e.getMessage();
                                     producer.send(session.createTextMessage(sellRefusalPayload));
                                     throw e;
                                 }
