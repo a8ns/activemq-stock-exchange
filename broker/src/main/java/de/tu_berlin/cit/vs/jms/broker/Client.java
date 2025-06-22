@@ -105,19 +105,17 @@ public class Client {
                             logger.log(Level.FINE, "Buy stock request received from : " + client.getClientName());
 
                             if (brokerMessage instanceof BuyMessage) {
-                                BuyMessage bm = (BuyMessage) brokerMessage;
+                                String buyConfirmationPayload;
                                 try {
-                                    logger.log(Level.FINE, "Sending Buy Confirmation for : " + client.getClientName());
-                                    Stock boughtStock = broker.buyStock(this, bm.getStockName(), bm.getAmount());
-                                    addStock(boughtStock.getName(), boughtStock.getStockCount(), boughtStock.getPrice());
-                                    String buyConfirmationPayload = "Confirmation: " + boughtStock.getStockCount() +
-                                        " stocks of " + boughtStock.getName() + " bought. Price: " + boughtStock.getPrice();
-                                    producer.send(session.createTextMessage(buyConfirmationPayload));
-                                } catch (Exception e) {
-                                    logger.log(Level.FINE, "Sending Buy Refusal for : " + client.getClientName());
-                                    String buyRefusalPayload = "Refusal: " + e.getMessage();
-                                    producer.send(session.createTextMessage(buyRefusalPayload));
+                                    Stock boughtStock = broker.buyStock(this, ((BuyMessage) brokerMessage).getStockName(),
+                                            ((BuyMessage) brokerMessage).getAmount());
+                                    addStock(boughtStock.getName(), boughtStock.getMaxStockCount(), boughtStock.getPrice());
+                                    buyConfirmationPayload = "Confirmation: " + boughtStock.getMaxStockCount() +
+                                            " stocks of " + boughtStock.getName() + " bought. Price: " + boughtStock.getPrice();
+                                    } catch (Exception e) {
+                                    buyConfirmationPayload = "error: " + e.getMessage();
                                 }
+                                    producer.send(session.createTextMessage(buyConfirmationPayload));
                             }
 
                             break;
@@ -142,13 +140,23 @@ public class Client {
 
                             break;
                         case STOCK_WATCH:
-                            // TODO?
+                            if (brokerMessage instanceof WatchMessage) {
+                                String stockName = ((WatchMessage) brokerMessage).getStockName();
+                                TopicMessage topicMessage = new TopicMessage(broker.topicMap.get(stockName), true);
+                                ObjectMessage topicObject = session.createObjectMessage(topicMessage);
+                                producer.send(topicObject);
+                                logger.log(Level.FINE, "sent Information for subscriber " + client.getClientName() + " to topic " + stockName);
+                            }
                             break;
                         case STOCK_UNWATCH:
-                            // TODO?
+                            if (brokerMessage instanceof UnwatchMessage) {
+                                String stockName = ((UnwatchMessage) brokerMessage).getStockName();
+                                TopicMessage topicMessage = new TopicMessage(broker.topicMap.get(stockName), false);
+                                ObjectMessage topicObject = session.createObjectMessage(topicMessage);
+                                producer.send(topicObject);
+                                logger.log(Level.FINE, "sent Information for subscriber " + client.getClientName() + " topic " + stockName);
+                            }
                             break;
-                        default:
-
                     }
                 }
 
@@ -186,9 +194,9 @@ public class Client {
 
     protected synchronized void addStock(String stockName, Integer quantity, BigDecimal price) throws JMSException {
         if (stocks.containsKey(stockName)) {
-            Integer currentQuantity = stocks.get(stockName).getStockCount();
+            Integer currentQuantity = stocks.get(stockName).getMaxStockCount();
             Integer newQuantity = currentQuantity + quantity;
-            stocks.get(stockName).setStockCount(newQuantity);
+            stocks.get(stockName).setMaxStockCount(newQuantity);
         } else {
             Stock newStock = new Stock(stockName, quantity, price);
             stocks.put(stockName, newStock);
@@ -198,15 +206,16 @@ public class Client {
     protected synchronized void removeStock(String stockName, Integer quantity) throws JMSException {
         if (stocks.containsKey(stockName)) {
             Stock stock = stocks.get(stockName);
-            if (quantity <= stock.getStockCount()) {
-                Integer newQuantity = stock.getStockCount() - quantity;
+            if (quantity <= stock.getMaxStockCount()) {
+                Integer newQuantity = stock.getMaxStockCount() - quantity;
                 if (newQuantity == 0) {
                     stocks.remove(stockName);
                 } else {
-                    stock.setStockCount(newQuantity);
+                    stock.setMaxStockCount(newQuantity);
                 }
             } else {
                 logger.log(Level.SEVERE, "Stock count exceeded available stock count");
+                throw new JMSException("Client has not enough stocks of this type");
             }
         } else {
             logger.log(Level.SEVERE, "Client has no stocks of this type");
@@ -226,7 +235,7 @@ public class Client {
             if (consumer != null) {
                 consumer.close();
             }
-
+            stocks.clear();
         } catch (JMSException e) {
             logger.log(Level.SEVERE, "Error cleaning up client", e);
         }
