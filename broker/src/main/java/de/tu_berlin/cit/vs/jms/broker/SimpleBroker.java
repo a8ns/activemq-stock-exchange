@@ -72,7 +72,7 @@ public class SimpleBroker {
 
                 break;
             case STOCK_SOLD:
-                payload = stock.getName() + " is " + "sold";
+                payload = "some of" + stock.getName() + " stock is sold. Remaining: "  + stock.getAvailableCount();
                 break;
             case STOCK_BOUGHT:
                 payload = stock.getName() + " is " + "bought";
@@ -195,7 +195,7 @@ public class SimpleBroker {
                 Integer newQuantity = quantity + stock.getAvailableCount();
                 stock.setAvailableCount(newQuantity);
             }
-            updateStockTopic(stockName, StockEvent.STOCK_BOUGHT);
+            updateStockTopic(stockName, StockEvent.STOCK_SOLD);
             client.addFunds(
                     this.getCurrentStockPrice(stockName).multiply(BigDecimal.valueOf(quantity))
             );
@@ -213,14 +213,16 @@ public class SimpleBroker {
                 if (client.getFunds().compareTo(
                         BigDecimal.valueOf(quantity).multiply(this.getCurrentStockPrice(stockName))
                 ) >= 0) {                 // check if enough funds with client
-                    Integer newQuantity = quantity - stock.getAvailableCount();
+                    int newQuantity = stock.getAvailableCount() - quantity;
                     stock.setAvailableCount(newQuantity);
+                    logger.log(Level.FINE,  "Sold " + quantity + " stock of " + stock.getName() + ", remain: "+ stock.getAvailableCount());
                     Stock boughtStock = new Stock(stockName, quantity, this.getCurrentStockPrice(stockName));
                     updateStockTopic(boughtStock, StockEvent.STOCK_BOUGHT);
                     return boughtStock;
                 }
+                throw new IllegalArgumentException("Not enough fund to make the purchase");
             }
-            throw new IllegalArgumentException("Requested stock quantity for " + stockName + " is not available");
+            throw new IllegalArgumentException("Asked quantity is exceeding available amount for " + stockName);
         }
         throw new IllegalArgumentException("Stock " + stockName + " does not exist");
     }
