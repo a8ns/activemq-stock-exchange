@@ -123,17 +123,21 @@ public class Client {
                         case STOCK_WATCH:
                             if (brokerMessage instanceof WatchMessage) {
                                 String stockName = ((WatchMessage) brokerMessage).getStockName();
-                                TopicMessage topicMessage = new TopicMessage(broker.topicMap.get(stockName));
+                                TopicMessage topicMessage = new TopicMessage(broker.topicMap.get(stockName), true);
                                 ObjectMessage topicObject = session.createObjectMessage(topicMessage);
                                 producer.send(topicObject);
-                                logger.log(Level.FINE, "sent Information for subscriber : " + client.getClientName() + " to topic " + stockName);
+                                logger.log(Level.FINE, "sent Information for subscriber " + client.getClientName() + " to topic " + stockName);
                             }
                             break;
                         case STOCK_UNWATCH:
-                            // TODO?
+                            if (brokerMessage instanceof UnwatchMessage) {
+                                String stockName = ((UnwatchMessage) brokerMessage).getStockName();
+                                TopicMessage topicMessage = new TopicMessage(broker.topicMap.get(stockName), false);
+                                ObjectMessage topicObject = session.createObjectMessage(topicMessage);
+                                producer.send(topicObject);
+                                logger.log(Level.FINE, "sent Information for subscriber " + client.getClientName() + " topic " + stockName);
+                            }
                             break;
-                        default:
-
                     }
                 }
 

@@ -86,32 +86,44 @@ public class JmsBrokerClient {
                 });
             }
 
-            //receive Topic-> subscribe to it
+            //receive Topic-> (un)subscribe to it
             if(responseData instanceof TopicMessage) {
-                TopicMessage topicReply = (TopicMessage) responseData;
-                String topicName = topicReply.getTopic().getTopicName();
+                Topic topic = ((TopicMessage) responseData).getTopic();
+                String topicName = topic.getTopicName();
+                boolean isSetSubscribing = ((TopicMessage) responseData).isSetSubscribing();
 
-                if(!topicConsumer.containsKey(topicName)) {
-                    logger.log(Level.INFO, "Subscribing to " + topicReply.getTopic().getTopicName());
-                    //create new consumer for each topic.
-                    //MessageListener for each Topic. Limited to nly text messages
-                    MessageConsumer consumer = session.createConsumer(topicReply.getTopic());
-                    consumer.setMessageListener(topicMessage -> {
-                        if (topicMessage instanceof TextMessage) {
-                            TextMessage textMessage = (TextMessage) topicMessage;
-                            try {
-                                logger.log(Level.INFO, "Received TextMessage: " + textMessage.getText());
-                            } catch (JMSException e) {
-                                logger.log(Level.SEVERE, "Error processing TextMessage", e);
+                if(isSetSubscribing) {
+                    if(!topicConsumer.containsKey(topicName)) {
+                        logger.log(Level.INFO, "Subscribing to " + topicName);
+                        //create new consumer for each topic.
+                        //MessageListener required for these consumer, so we have this function block from 100-109. Limited to only text messages
+                        MessageConsumer consumer = session.createConsumer(topic);
+                        consumer.setMessageListener(topicMessage -> {
+                            if (topicMessage instanceof TextMessage) {
+                                TextMessage textMessage = (TextMessage) topicMessage;
+                                try {
+                                    logger.log(Level.INFO, "Received TextMessage: " + textMessage.getText());
+                                } catch (JMSException e) {
+                                    logger.log(Level.SEVERE, "Error processing TextMessage", e);
+                                }
+                            } else {
+                                logger.log(Level.SEVERE, "Topic Message is limited to text only. Actual type: " + topicMessage.toString());
                             }
-                        } else {
-                            logger.log(Level.SEVERE, "Topic Message is limited to text only. Actual type: " + topicMessage.toString());
-                        }
-                    });
-                    topicConsumer.put(topicReply.getTopic().getTopicName(), consumer);
-                    logger.log(Level.FINE, "Subscribed to topic: " + topicReply.getTopic().getTopicName());
+                        });
+                        topicConsumer.put(topicName, consumer);
+                        logger.log(Level.FINE, "Subscribed to topic: " + topicName);
+                    } else {
+                        logger.log(Level.INFO, "Already subscribed to " + topicName);
+                    }
                 } else {
-                    logger.log(Level.INFO, "Already subscribed to " + topicName);
+                    if(topicConsumer.containsKey(topicName)) {
+                        logger.log(Level.INFO, "Unsubscribing to " + topicName);
+                        topicConsumer.get(topicName).close();
+                        topicConsumer.remove(topicName);
+                        logger.log(Level.INFO, "Unsubscribed from topic: " + topicName);
+                    } else{
+                        logger.log(Level.INFO, "Client not subscribed to " + topicName);
+                    }
                 }
             }
         } else if (message instanceof TextMessage) {
@@ -182,7 +194,10 @@ public class JmsBrokerClient {
     }
 
     public void unwatch(String stockName) throws JMSException {
-        //TODO
+        UnwatchMessage unwatchMessage = new UnwatchMessage(stockName);
+        ObjectMessage request = session.createObjectMessage(unwatchMessage);
+        messageProducer.send(request);
+        logger.log(Level.FINE,"Requesting to unwatch " + stockName + " sent ");
     }
 
     public void quit() throws JMSException {
@@ -243,7 +258,7 @@ public class JmsBrokerClient {
                             if(task.length == 2) {
                                 client.unwatch(task[1]);
                             } else {
-                                System.out.println("Correct usage: watch [stock]");
+                                System.out.println("Correct usage: unwatch [stock]");
                             }
                             break;
                         default:

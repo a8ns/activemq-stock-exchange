@@ -72,15 +72,15 @@ public class SimpleBroker {
 
                 break;
             case STOCK_SOLD:
-                payload = "some of" + stock.getName() + " stock is sold. Remaining: "  + stock.getAvailableCount();
+                payload = "some of " + stock.getName() + " stock is bought. Remaining: "  + stock.getAvailableCount();
                 break;
             case STOCK_BOUGHT:
-                payload = stock.getName() + " is " + "bought";
+                payload = "some of " + stock.getName() + " stock is sold. Remaining: "  + stock.getAvailableCount();;
                 break;
             default:
                 break;
         }
-        if (payload != "") {
+        if (!payload.isEmpty()) {
             Message message = session.createTextMessage(payload);
             if (topicProducers.containsKey(stock.getName())) {
                 topicProducers.get(stock.getName()).send(message);
@@ -97,15 +97,15 @@ public class SimpleBroker {
                 }
                 break;
             case STOCK_SOLD:
-                payload = stockName + " is " + "sold";
+                payload = "some of " + stockName + " stock is sold by client. Remaining: "  + stockName;;
                 break;
             case STOCK_BOUGHT:
-                payload = stockName + " is " + "bought";
+                payload =  "some of " + stockName + " stock is bought by client. Remaining: "  + stockName;;
                 break;
             default:
                 break;
         }
-        if (payload != "") {
+        if (!payload.isEmpty()) {
             Message message = session.createTextMessage(payload);
             if (topicProducers.containsKey(stockName)) {
                 topicProducers.get(stockName).send(message);
@@ -189,7 +189,6 @@ public class SimpleBroker {
 
     public synchronized void sellStock(Client client, String stockName, Integer quantity) throws JMSException {
         try {
-            client.removeStock(stockName, quantity);
             if (stockMap.containsKey(stockName)) {
                 Stock stock = stockMap.get(stockName);
                 Integer newQuantity = quantity + stock.getAvailableCount();
@@ -215,10 +214,9 @@ public class SimpleBroker {
                 ) >= 0) {                 // check if enough funds with client
                     int newQuantity = stock.getAvailableCount() - quantity;
                     stock.setAvailableCount(newQuantity);
+                    updateStockTopic(stock, StockEvent.STOCK_BOUGHT);
                     logger.log(Level.FINE,  "Sold " + quantity + " stock of " + stock.getName() + ", remain: "+ stock.getAvailableCount());
-                    Stock boughtStock = new Stock(stockName, quantity, this.getCurrentStockPrice(stockName));
-                    updateStockTopic(boughtStock, StockEvent.STOCK_BOUGHT);
-                    return boughtStock;
+                    return new Stock(stockName, quantity, this.getCurrentStockPrice(stockName));
                 }
                 throw new IllegalArgumentException("Not enough fund to make the purchase");
             }
