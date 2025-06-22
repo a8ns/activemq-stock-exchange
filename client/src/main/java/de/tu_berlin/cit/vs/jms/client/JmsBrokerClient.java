@@ -1,19 +1,19 @@
 package de.tu_berlin.cit.vs.jms.client;
 
+import de.tu_berlin.cit.vs.jms.common.*;
+import org.apache.activemq.ActiveMQConnectionFactory;
+
+import javax.jms.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.jms.*;
-
-import de.tu_berlin.cit.vs.jms.common.*;
-import org.apache.activemq.ActiveMQConnectionFactory;
 
 
 public class JmsBrokerClient {
@@ -294,13 +294,24 @@ public class JmsBrokerClient {
     /**
      * @param args the command line arguments
      */
-    public static void main(String[] args) {
-        // TODO:
-        // arg[1] -> name
-        // JmsBrokerClient client = new JmsBrokerClient(clientName);
-        // Thread.sleep(500);
-        // arg[2] -> action
-        //
+    public static void main(String[] args) throws JMSException {
+
+        if (args.length > 0) {
+            String clientName = args[1];
+            String stockName = args[2];
+            int amount = Integer.parseInt(args[3]);
+
+            JmsBrokerClient client = new JmsBrokerClient(clientName);
+            client.buy(stockName, amount);
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+
+            }
+            client.quit();
+            System.exit(0);
+        }
+
         try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             System.out.println("Enter the client name:");
