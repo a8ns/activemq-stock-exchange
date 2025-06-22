@@ -200,7 +200,7 @@ public class SimpleBroker {
         }
     }
 
-    public synchronized Stock buyStock(Client client, String stockName, Integer quantity) throws JMSException {
+    public synchronized Stock buyStock(Client client, String stockName, Integer quantity) throws JMSException, InsufficientFundsException {
         if (stockExchange.getStockMap().containsKey(stockName)) {
             Stock stock = stockExchange.getStockMap().get(stockName);
             if (quantity <= stock.getAvailableCount()) {
