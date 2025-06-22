@@ -21,12 +21,12 @@ public class SimpleBroker {
     Queue registrationQueue;
     MessageConsumer registrationConsumer;
     private MessageProducer replyOnceProducer;
-    Map<String, Stock> stockMap = new HashMap<>();
+    StockExchange stockExchange;
     Map<String, Topic> topicMap = new HashMap<>();
     Map<String, MessageProducer> topicProducers = new HashMap<>();
 
-    public SimpleBroker(Map<String, Stock> stockList) throws JMSException {
-        this.stockMap = stockList;
+    public SimpleBroker(StockExchange stockExchange) throws JMSException {
+        this.stockExchange = stockExchange;
         ActiveMQConnectionFactory conFactory = new ActiveMQConnectionFactory("tcp://localhost:61616");
         conFactory.setTrustedPackages(Arrays.asList(
                 "de.tu_berlin.cit.vs.jms.common",
@@ -45,7 +45,7 @@ public class SimpleBroker {
 
         MessageListener registrationListener = message -> {
             try {
-                logger.log(Level.INFO, "Received JMS Message ");
+                logger.log(Level.FINE, "Received JMS Message ");
                 processRegistration(message);
             } catch (JMSException e) {
                 logger.log(Level.SEVERE, "Error processing registration", e);
@@ -54,9 +54,7 @@ public class SimpleBroker {
         registrationConsumer.setMessageListener(registrationListener);
 
 
-        for(String stockName : stockList.keySet()) {
-            /* WIP: prepare stocks as topics */
-
+        for(String stockName : stockExchange.getStockMap().keySet()) {
             Topic topic = session.createTopic(stockName);
             topicMap.put(stockName, topic);
             topicProducers.put(stockName, session.createProducer(topic));
@@ -68,13 +66,13 @@ public class SimpleBroker {
         String payload = "";
         switch(stockEvent) {
             case STOCK_PRICE_CHANGED:
-                payload = "New price for " + stock.getName() + " is " + stock.getPrice();
+                payload = "Price Update for " + stock.getName() + ". Current price: " + stock.getPrice();
                 break;
             case STOCK_SOLD:
-                payload = "some of " + stock.getName() + " stock is bought. Remaining: "  + stock.getAvailableCount();
+                payload = stock.getName() + " stock has been sold by a client. Available: "  + stock.getAvailableCount();
                 break;
             case STOCK_BOUGHT:
-                payload = "some of " + stock.getName() + " stock is sold. Remaining: "  + stock.getAvailableCount();;
+                payload = stock.getName() + " stock is bought by a client. Available: "  + stock.getAvailableCount();
                 break;
             default:
                 break;
@@ -87,19 +85,20 @@ public class SimpleBroker {
         }
     }
 
+
     private void updateStockTopic(String stockName, StockEvent stockEvent) throws JMSException {
         String payload = "";
         switch(stockEvent) {
             case STOCK_PRICE_CHANGED:
-                if (stockMap.containsKey(stockName)) {
-                    payload = "New price for " + stockName + " is " + stockMap.get(stockName).getPrice();
+                if (stockExchange.getStockMap().containsKey(stockName)) {
+                    payload = "Price Update for " + stockName + ". Current price: " + stockExchange.getStockMap().get(stockName).getPrice();
                 }
                 break;
             case STOCK_SOLD:
-                payload = "some of " + stockName + " stock is sold by client. Remaining: "  + stockName;;
+                payload = stockName + " stock has been sold by a client. Available: "  + stockName;;
                 break;
             case STOCK_BOUGHT:
-                payload =  "some of " + stockName + " stock is bought by client. Remaining: "  + stockName;;
+                payload =  stockName + " stock is bought by a client. Available: "  + stockName;;
                 break;
             default:
                 break;
@@ -184,9 +183,9 @@ public class SimpleBroker {
 
     public synchronized void sellStock(Client client, String stockName, Integer quantity) throws JMSException {
         try {
-            if (stockMap.containsKey(stockName)) {
+            if (stockExchange.getStockMap().containsKey(stockName)) {
                 client.removeStock(stockName, quantity);
-                Stock stock = stockMap.get(stockName);
+                Stock stock = stockExchange.getStockMap().get(stockName);
                 Integer newQuantity = quantity + stock.getAvailableCount();
                 stock.setAvailableCount(newQuantity);
             }
@@ -201,8 +200,8 @@ public class SimpleBroker {
     }
 
     public synchronized Stock buyStock(Client client, String stockName, Integer quantity) throws JMSException, InsufficientFundsException {
-        if (stockMap.containsKey(stockName)) {
-            Stock stock = stockMap.get(stockName);
+        if (stockExchange.getStockMap().containsKey(stockName)) {
+            Stock stock = stockExchange.getStockMap().get(stockName);
             if (quantity <= stock.getAvailableCount()) {
                 BigDecimal cost = BigDecimal.valueOf(quantity).multiply(this.getCurrentStockPrice(stockName));
                 if (client.getFunds().compareTo(cost) >= 0) { // check if enough funds with client
@@ -225,7 +224,7 @@ public class SimpleBroker {
     }
 
     public BigDecimal getCurrentStockPrice(String stockName) {
-        return stockMap.get(stockName).getPrice();
+        return stockExchange.getStockMap().get(stockName).getPrice();
     }
 
     public synchronized int deregisterClient(String clientName) throws JMSException {
@@ -240,11 +239,13 @@ public class SimpleBroker {
     public synchronized String getInfoOnSingleStock(Stock stock) throws JMSException {
         return stock.toString();
     }
-    public synchronized List<Stock> getStockMap() {
-        return new ArrayList<>(this.stockMap.values());
+    public synchronized List<Stock> getStockExchangeMap() {
+        return new ArrayList<>(this.stockExchange.getStockMap().values());
     }
 
     public synchronized Map<String, Stock> getStocks() {
-        return this.stockMap;
+        return this.stockExchange.getStockMap();
     }
+
+
 }

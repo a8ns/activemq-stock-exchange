@@ -17,6 +17,12 @@ public class Stock implements Serializable {
         this.price = price;
     }
 
+    public Stock(String name, int maxStockCount) {
+        this.maxStockCount = maxStockCount;
+        this.availableCount = maxStockCount;
+        this.name = name;
+    }
+
     public String getName() {
         return name;
     }
