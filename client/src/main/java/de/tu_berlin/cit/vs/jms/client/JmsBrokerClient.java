@@ -192,7 +192,7 @@ public class JmsBrokerClient {
 
     private RegisterAcknowledgementMessage registerWithBroker() throws JMSException {
         Integer timeout = 300000; // 300 seconds
-        BigDecimal initialFunds = BigDecimal.valueOf(10000);
+        BigDecimal initialFunds = BigDecimal.valueOf(100000);
         RegisterMessage registerMessage = new RegisterMessage(clientName, initialFunds);
 
         Queue registrationQueue = session.createQueue(registrationQueueName);

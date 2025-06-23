@@ -51,7 +51,7 @@ public class SimpleBroker {
                 replySession = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
                 logger.log(Level.FINE, "Received JMS Message ");
-                processRegistration(message, processingSession, replySession);
+                processRegistration(message, this.con, replySession);
             } catch (JMSException e) {
                 logger.log(Level.SEVERE, "Error processing registration", e);
             } finally {
@@ -124,7 +124,7 @@ public class SimpleBroker {
         }
     }
 
-    private synchronized void processRegistration(Message msg, Session processingSession, Session replySession) throws JMSException {
+    private synchronized void processRegistration(Message msg, Connection connection, Session replySession) throws JMSException {
         if (!(msg instanceof ObjectMessage)) {
             throw new IllegalArgumentException("Expected ObjectMessage");
         }
@@ -135,7 +135,7 @@ public class SimpleBroker {
             throw new IllegalArgumentException("Expected RegisterMessage");
         }
         RegisterMessage registerMessage = (RegisterMessage) obj;
-        if (registerClient(registerMessage.getClientName(), processingSession, registerMessage.getInitialAmount()) == 0) {
+        if (registerClient(registerMessage.getClientName(), connection, registerMessage.getInitialAmount()) == 0) {
             // get ReplyTo,  produce message and send out
             Destination replyTo = objMsg.getJMSReplyTo();
             logger.log(Level.FINE, "ReplyTo: " + replyTo.toString());
@@ -186,13 +186,13 @@ public class SimpleBroker {
         if (this.con != null) this.con.close();
     }
 
-    public synchronized int registerClient(String clientName, Session session, BigDecimal funds) throws JMSException {
+    public synchronized int registerClient(String clientName, Connection connection, BigDecimal funds) throws JMSException {
         // check if client exists
         if (this.clients.containsKey(clientName)) {
             throw new IllegalArgumentException("Client " + clientName + " already registered");
         }
 
-        Client newClient = new Client(this, clientName, session, funds);
+        Client newClient = new Client(this, clientName, connection, funds);
         newClient.setMessageListener(msg -> newClient.handleClientMessage(newClient, msg));
         this.clients.put(clientName, newClient);
 
