@@ -24,11 +24,12 @@ public class Client {
     private Map<String, Stock> stocks = new HashMap<>();
     private BigDecimal funds;
     private SimpleBroker broker;
-    public Client(SimpleBroker broker, String clientName, Session session, BigDecimal funds) throws JMSException {
+    public Client(SimpleBroker broker, String clientName, Connection connection, BigDecimal funds) throws JMSException {
         this.broker = broker;
         this.clientName = clientName;
         this.funds = funds;
-        this.session = session;
+
+        this.session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
         this.incomingQueue = session.createQueue(clientName + "ToBroker");
         this.outgoingQueue = session.createQueue(clientName + "FromBroker");
