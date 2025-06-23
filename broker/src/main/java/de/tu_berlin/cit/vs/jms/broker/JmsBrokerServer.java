@@ -28,8 +28,9 @@ public class JmsBrokerServer {
             stocks.put("META", new Stock("META", 60));     // Meta (Facebook) - Social media
             stocks.put("TSLA", new Stock("TSLA", 40));     // Tesla - Electric vehicles
             stocks.put("BRK-A", new Stock("BRK-A", 1)); // Berkshire Hathaway Class A
-            stocks.put("TSM", new Stock("TSM", 300));      // Taiwan Semiconductor            logger.log(Level.FINE, "STOCKS AVAILABLE: ");
+            stocks.put("TSM", new Stock("TSM", 300));      // Taiwan Semiconductor
             stocks.put("WMT", new Stock("WMT", 220));      // Walmart - Retail giant
+            logger.log(Level.FINE, "STOCKS AVAILABLE: ");
             logger.log(Level.FINE, "--------------------");
             for (String stock : stocks.keySet()) {
                 logger.log(Level.FINE, stock);

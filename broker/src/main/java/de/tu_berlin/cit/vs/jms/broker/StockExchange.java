@@ -3,7 +3,6 @@ package de.tu_berlin.cit.vs.jms.broker;
 import de.tu_berlin.cit.vs.jms.common.LoggingUtils;
 import de.tu_berlin.cit.vs.jms.common.Stock;
 import org.apache.commons.csv.*;
-import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
@@ -17,7 +16,6 @@ import java.util.logging.Logger;
 public class StockExchange {
     private static final Logger logger = LoggingUtils.getLogger(StockExchange.class);
     private Map<String, Stock> stockMap;
-    private Map<Integer, String> stockPositionMap = new HashMap<>();
     private List<String> stockSymbols = new ArrayList<>();
     public StockExchange(Map<String, Stock> stockMap, String filePath) {
         this(stockMap, filePath, Optional.of(5000));

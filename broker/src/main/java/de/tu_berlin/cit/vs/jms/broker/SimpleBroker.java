@@ -17,10 +17,9 @@ public class SimpleBroker {
     Map<String, Client> clients = new HashMap<>();
     Connection con;
     Session session;
-    Session replySession;
     Queue registrationQueue;
     MessageConsumer registrationConsumer;
-    private MessageProducer replyOnceProducer;
+
     StockExchange stockExchange;
     Map<String, Topic> topicMap = new HashMap<>();
     Map<String, MessageProducer> topicProducers = new HashMap<>();
@@ -36,7 +35,7 @@ public class SimpleBroker {
         this.con = conFactory.createConnection();
         this.con.start();
         this.session = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
-        this.replySession = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
 
 
         this.registrationQueue = session.createQueue("broker-registration");
@@ -44,11 +43,25 @@ public class SimpleBroker {
         this.registrationConsumer = session.createConsumer(registrationQueue);
 
         MessageListener registrationListener = message -> {
+            // Create dedicated sessions for each message processing
+            Session processingSession = null;
+            Session replySession = null;
             try {
+                processingSession = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
+                replySession = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
                 logger.log(Level.FINE, "Received JMS Message ");
-                processRegistration(message);
+                processRegistration(message, processingSession, replySession);
             } catch (JMSException e) {
                 logger.log(Level.SEVERE, "Error processing registration", e);
+            } finally {
+                // Clean up sessions
+                try {
+                    if (processingSession != null) processingSession.close();
+                    if (replySession != null) replySession.close();
+                } catch (JMSException e) {
+                    logger.log(Level.WARNING, "Error closing sessions", e);
+                }
             }
         };
         registrationConsumer.setMessageListener(registrationListener);
@@ -111,7 +124,7 @@ public class SimpleBroker {
         }
     }
 
-    private synchronized void processRegistration(Message msg) throws JMSException {
+    private synchronized void processRegistration(Message msg, Session processingSession, Session replySession) throws JMSException {
         if (!(msg instanceof ObjectMessage)) {
             throw new IllegalArgumentException("Expected ObjectMessage");
         }
@@ -122,7 +135,7 @@ public class SimpleBroker {
             throw new IllegalArgumentException("Expected RegisterMessage");
         }
         RegisterMessage registerMessage = (RegisterMessage) obj;
-        if (registerClient(registerMessage.getClientName(), session, registerMessage.getInitialAmount()) == 0) {
+        if (registerClient(registerMessage.getClientName(), processingSession, registerMessage.getInitialAmount()) == 0) {
             // get ReplyTo,  produce message and send out
             Destination replyTo = objMsg.getJMSReplyTo();
             logger.log(Level.FINE, "ReplyTo: " + replyTo.toString());
@@ -141,7 +154,8 @@ public class SimpleBroker {
                     reply.setJMSCorrelationID(objMsg.getJMSCorrelationID());
                     reply.setJMSDeliveryMode(DeliveryMode.NON_PERSISTENT);
                     reply.setJMSReplyTo(replyTo);
-                    replyOnceProducer = replySession.createProducer(null);
+
+                    MessageProducer replyOnceProducer = replySession.createProducer(null);
                     replyOnceProducer.setTimeToLive(5000);
                     logger.log(Level.FINE, "ReplyTo destination: " + replyTo);
                     logger.log(Level.FINE, "Reply: " + reply);
@@ -151,8 +165,12 @@ public class SimpleBroker {
                         logger.log(Level.WARNING, "ReplyTo is not a temp queue: " + replyTo.getClass());
                     }
                     replyOnceProducer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
-                    replyOnceProducer.send(replyTo, reply);
-                    replyOnceProducer.close();
+                    try {
+                        replyOnceProducer.send(replyTo, reply);
+                    } finally {
+                        replyOnceProducer.close();
+                    }
+
                     logger.log(Level.FINE, "replyTo sent out, replyOnceProducer closed");
                 }
             }
