@@ -151,46 +151,7 @@ public class JmsBrokerClient {
                 }
             }
 
-            //receive Topic-> (un)subscribe to it
-            if(responseData instanceof TopicMessage) {
-                Topic topic = ((TopicMessage) responseData).getTopic();
-                String topicName = topic.getTopicName();
-                boolean isSetSubscribing = ((TopicMessage) responseData).isSetSubscribing();
 
-                if(isSetSubscribing) {
-                    if(!topicConsumer.containsKey(topicName)) {
-                        logger.log(Level.INFO, "Subscribing to " + topicName);
-                        //create new consumer for each topic.
-                        //MessageListener required for these consumer, so we have this function block from 100-109. Limited to only text messages
-                        MessageConsumer consumer = session.createConsumer(topic);
-                        consumer.setMessageListener(topicMessage -> {
-                            if (topicMessage instanceof TextMessage) {
-                                TextMessage textMessage = (TextMessage) topicMessage;
-                                try {
-                                    logger.log(Level.INFO, textMessage.getText());
-                                } catch (JMSException e) {
-                                    logger.log(Level.SEVERE, "Error processing TextMessage", e);
-                                }
-                            } else {
-                                logger.log(Level.SEVERE, "Topic Message is limited to text only. Actual type: " + topicMessage.toString());
-                            }
-                        });
-                        topicConsumer.put(topicName, consumer);
-                        logger.log(Level.INFO, "Subscribed to topic: " + topicName);
-                    } else {
-                        logger.log(Level.INFO, "Already subscribed to " + topicName);
-                    }
-                } else {
-                    if(topicConsumer.containsKey(topicName)) {
-                        logger.log(Level.INFO, "Unsubscribing to " + topicName);
-                        topicConsumer.get(topicName).close();
-                        topicConsumer.remove(topicName);
-                        logger.log(Level.INFO, "Unsubscribed from topic: " + topicName);
-                    } else{
-                        logger.log(Level.INFO, "Client not subscribed to " + topicName);
-                    }
-                }
-            }
         } else if (message instanceof TextMessage) {
             TextMessage textMessage = (TextMessage) message;
             logger.log(Level.INFO,"Topic Update: " + textMessage.getText());

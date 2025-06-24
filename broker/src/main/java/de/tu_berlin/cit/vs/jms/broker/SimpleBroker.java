@@ -1,6 +1,7 @@
 package de.tu_berlin.cit.vs.jms.broker;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -81,7 +82,8 @@ public class SimpleBroker {
         String payload = "";
         switch(stockEvent) {
             case STOCK_PRICE_CHANGED:
-                payload = "Price Update for " + stock.getName() + ". Current price: " + stock.getPrice();
+                payload = "Price Update for " + stock.getName() + ". Current price: " +
+                        stock.getPrice().setScale(2, RoundingMode.DOWN);
                 break;
             case STOCK_SOLD:
                 payload = stock.getAvailableCount() + stock.getName() + " stock has been sold by a client.";
@@ -107,7 +109,8 @@ public class SimpleBroker {
         switch(stockEvent) {
             case STOCK_PRICE_CHANGED:
                 if (stockExchange.getStockMap().containsKey(stockName)) {
-                    payload = "Price Update for " + stockName + ". Current price: " + stockExchange.getStockMap().get(stockName).getPrice();
+                    payload = "Price Update for " + stockName + ". Current price: " +
+                            stockExchange.getStockMap().get(stockName).getPrice().setScale(2, RoundingMode.DOWN);
                 }
                 break;
             case STOCK_SOLD:
