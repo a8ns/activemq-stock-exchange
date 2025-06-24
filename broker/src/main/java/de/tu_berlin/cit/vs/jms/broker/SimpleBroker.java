@@ -26,6 +26,7 @@ public class SimpleBroker {
 
     public SimpleBroker(StockExchange stockExchange) throws JMSException {
         this.stockExchange = stockExchange;
+        this.stockExchange.registerBroker(this);
         ActiveMQConnectionFactory conFactory = new ActiveMQConnectionFactory("tcp://localhost:61616");
         conFactory.setTrustedPackages(Arrays.asList(
                 "de.tu_berlin.cit.vs.jms.common",
@@ -76,16 +77,17 @@ public class SimpleBroker {
     }
 
     private void updateStockTopic(Stock stock, StockEvent stockEvent) throws JMSException {
+        if (this.session == null) return;
         String payload = "";
         switch(stockEvent) {
             case STOCK_PRICE_CHANGED:
                 payload = "Price Update for " + stock.getName() + ". Current price: " + stock.getPrice();
                 break;
             case STOCK_SOLD:
-                payload = stock.getName() + " stock has been sold by a client. Available: "  + stock.getAvailableCount();
+                payload = stock.getAvailableCount() + stock.getName() + " stock has been sold by a client.";
                 break;
             case STOCK_BOUGHT:
-                payload = stock.getName() + " stock is bought by a client. Available: "  + stock.getAvailableCount();
+                payload = stock.getAvailableCount() + stock.getName() + " stock is bought by a client.";
                 break;
             default:
                 break;
@@ -100,6 +102,7 @@ public class SimpleBroker {
 
 
     private void updateStockTopic(String stockName, StockEvent stockEvent) throws JMSException {
+        if (this.session == null) return;
         String payload = "";
         switch(stockEvent) {
             case STOCK_PRICE_CHANGED:
@@ -117,7 +120,7 @@ public class SimpleBroker {
                 break;
         }
         if (!payload.isEmpty()) {
-            Message message = session.createTextMessage(payload);
+            Message message = this.session.createTextMessage(payload);
             if (topicProducers.containsKey(stockName)) {
                 topicProducers.get(stockName).send(message);
             }
@@ -263,6 +266,21 @@ public class SimpleBroker {
 
     public synchronized Map<String, Stock> getStocks() {
         return this.stockExchange.getStockMap();
+    }
+
+    public void notifyPriceUpdate() throws JMSException {
+        stockExchange.getStockMap().forEach((stockName, stock) -> {
+                    try {
+                        if (stock.getPrice() != null) {
+                            updateStockTopic(stock, StockEvent.STOCK_PRICE_CHANGED);
+                        }
+
+                    } catch (JMSException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+        );
     }
 
 

@@ -3,6 +3,8 @@ package de.tu_berlin.cit.vs.jms.broker;
 import de.tu_berlin.cit.vs.jms.common.LoggingUtils;
 import de.tu_berlin.cit.vs.jms.common.Stock;
 import org.apache.commons.csv.*;
+
+import javax.jms.JMSException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
@@ -17,6 +19,7 @@ public class StockExchange {
     private static final Logger logger = LoggingUtils.getLogger(StockExchange.class);
     private Map<String, Stock> stockMap;
     private List<String> stockSymbols = new ArrayList<>();
+    private List<SimpleBroker> brokers = new ArrayList<>();
     public StockExchange(Map<String, Stock> stockMap, String filePath) {
         this(stockMap, filePath, Optional.of(5000));
     }
@@ -68,7 +71,8 @@ public class StockExchange {
 
             for (CSVRecord record : parser) {
                 processStockRecord(record);
-                Thread.sleep(sleepMillis.orElse(5000));
+                notifyBrokers();
+                Thread.sleep(sleepMillis.orElse(10000)); // update price every 10 seconds
             }
 
 
@@ -80,5 +84,26 @@ public class StockExchange {
         }
     }
 
+    private void notifyBrokers() {
 
+        this.brokers.forEach(SimpleBroker -> {
+            try {
+                SimpleBroker.notifyPriceUpdate();
+            } catch (JMSException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+    }
+    public void registerBroker(SimpleBroker broker) {
+        brokers.add(broker);
+    }
+
+    public List<SimpleBroker> getBrokers() {
+        return brokers;
+    }
+
+    public void unregisterBroker(SimpleBroker broker) {
+        brokers.remove(broker);
+    }
 }

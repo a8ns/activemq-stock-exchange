@@ -26,6 +26,8 @@ public abstract class BrokerMessage implements Serializable {
         TOPIC,
         STOCK_SELL,
         STOCK_INFO,
-        STOCK_PROFILE
+        STOCK_PROFILE,
+        TRANSACTION_CONFIRMATION,
+        TRANSACTION_REFUSAL
     }
 }
