@@ -106,17 +106,25 @@ public class Client {
                             logger.log(Level.FINE, "Buy stock request received from : " + client.getClientName());
 
                             if (brokerMessage instanceof BuyMessage) {
-                                String buyConfirmationPayload;
+                                ObjectMessage transactionOM;
                                 try {
-                                    Stock boughtStock = broker.buyStock(this, ((BuyMessage) brokerMessage).getStockName(),
+                                    Stock boughtStock = broker.buyStock(
+                                            this, ((BuyMessage) brokerMessage).getStockName(),
                                             ((BuyMessage) brokerMessage).getAmount());
                                     addStock(boughtStock.getName(), boughtStock.getMaxStockCount(), boughtStock.getPrice());
-                                    buyConfirmationPayload = "Confirmation: " + boughtStock.getMaxStockCount() +
+                                    String buyConfirmationPayload = "Confirmation: " + boughtStock.getMaxStockCount() +
                                             " stocks of " + boughtStock.getName() + " bought. Price: " + boughtStock.getPrice();
-                                    } catch (Exception e) {
-                                    buyConfirmationPayload = "error: " + e.getMessage();
+                                    TransactionConfirmationMessage transactionConfirmationMessage =
+                                            new TransactionConfirmationMessage(buyConfirmationPayload);
+                                    transactionOM = session.createObjectMessage(transactionConfirmationMessage);
+                                } catch (Exception e) {
+                                    String refusalPayload = "Transaction Refusal: " + e.getMessage();
+                                    TransactionRefusalMessage transactionRefusalMessage =
+                                            new TransactionRefusalMessage(refusalPayload);
+                                    transactionOM = session.createObjectMessage(transactionRefusalMessage);
                                 }
-                                    producer.send(session.createTextMessage(buyConfirmationPayload));
+
+                                    producer.send(transactionOM);
                             }
 
                             break;
@@ -125,18 +133,23 @@ public class Client {
                             if (brokerMessage instanceof SellMessage) {
                                 String stockNameForSell = ((SellMessage) brokerMessage).getStockName();
                                 Integer amount = ((SellMessage) brokerMessage).getAmount();
+                                ObjectMessage transactionOM;
                                 try {
                                     logger.log(Level.FINE, "Sending Sell Confirmation for : " + client.getClientName());
                                     broker.sellStock(this, stockNameForSell, amount);
                                     String sellConfirmationPayload = "Confirmation: " + amount + " stocks of "
                                         + stockNameForSell + " sold. Price: TODO " ; // TODO: retrieve proper price
-                                    producer.send(session.createTextMessage(sellConfirmationPayload));
+                                    TransactionConfirmationMessage transactionConfirmationMessage =
+                                            new TransactionConfirmationMessage(sellConfirmationPayload);
+                                    transactionOM = session.createObjectMessage(transactionConfirmationMessage);
                                 } catch (JMSException e) {
                                     logger.log(Level.FINE, "Sending Sell Refusal for : " + client.getClientName());
-                                    String sellRefusalPayload = "Refusal: " + e.getMessage();
-                                    producer.send(session.createTextMessage(sellRefusalPayload));
-                                    throw e;
+                                    String sellRefusalPayload = "Transaction Refusal: " + e.getMessage();
+                                    TransactionRefusalMessage transactionRefusalMessage =
+                                            new TransactionRefusalMessage(sellRefusalPayload);
+                                    transactionOM = session.createObjectMessage(transactionRefusalMessage);
                                 }
+                                producer.send(transactionOM);
                             }
 
                             break;

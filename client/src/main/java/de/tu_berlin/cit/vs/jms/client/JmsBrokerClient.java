@@ -101,6 +101,13 @@ public class JmsBrokerClient {
                 } else {
                     logger.log(Level.INFO, "-- None --");
                 }
+            } else if (responseData instanceof TransactionConfirmationMessage) {
+                TransactionConfirmationMessage transactionConfirmationResponse = (TransactionConfirmationMessage) responseData;
+                logger.log(Level.INFO,transactionConfirmationResponse.getMessage());
+
+            } else if (responseData instanceof TransactionRefusalMessage) {
+                TransactionRefusalMessage transactionRefusalResponse = (TransactionRefusalMessage) responseData;
+                logger.log(Level.INFO,transactionRefusalResponse.getMessage());
             }
 
             //receive Topic-> (un)subscribe to it
@@ -169,7 +176,7 @@ public class JmsBrokerClient {
                             }
                         });
                         topicConsumer.put(topicName, consumer);
-                        logger.log(Level.FINE, "Subscribed to topic: " + topicName);
+                        logger.log(Level.INFO, "Subscribed to topic: " + topicName);
                     } else {
                         logger.log(Level.INFO, "Already subscribed to " + topicName);
                     }
@@ -272,6 +279,10 @@ public class JmsBrokerClient {
     }
 
     public void quit() throws JMSException {
+        UnregisterMessage unregisterMessage = new UnregisterMessage(clientName);
+        ObjectMessage request = session.createObjectMessage(unregisterMessage);
+        messageProducer.send(request);
+
         // Close consumers and producers first
         if (messageConsumer != null) messageConsumer.close();
         if (messageProducer != null) messageProducer.close();
@@ -286,9 +297,7 @@ public class JmsBrokerClient {
 
         logger.log(Level.INFO, "Client disconnected. Queues remain on broker.");
 
-        UnregisterMessage unregisterMessage = new UnregisterMessage(clientName);
-        ObjectMessage request = session.createObjectMessage(unregisterMessage);
-        messageProducer.send(request);
+
     }
 
     /**
