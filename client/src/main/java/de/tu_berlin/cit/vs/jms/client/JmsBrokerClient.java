@@ -8,6 +8,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -91,8 +92,8 @@ public class JmsBrokerClient {
             else if (responseData instanceof ProfileMessage) {
                 ProfileMessage profileResponse = (ProfileMessage) responseData;
                 logger.log(Level.INFO, "Client Name: " + profileResponse.getClientName());
-                logger.log(Level.INFO, "Funds: " + profileResponse.getFunds());
-                logger.log(Level.INFO, "Owned stocks:");
+                logger.log(Level.INFO, "Funds: " + profileResponse.getFunds().setScale(2, RoundingMode.DOWN));
+                logger.log(Level.INFO, "Owns stocks:");
                 List<Stock> stocks = profileResponse.getStocks();
                 if (!stocks.isEmpty()) {
                     stocks.forEach(stock -> {
@@ -264,7 +265,7 @@ public class JmsBrokerClient {
     /**
      * @param args the command line arguments
      */
-    public static void main(String[] args) throws JMSException {
+    public static void main(String[] args) throws JMSException, InterruptedException {
 
         if (args.length > 0) {
             String clientName = args[1];
@@ -276,7 +277,7 @@ public class JmsBrokerClient {
             try {
                 Thread.sleep(2000);
             } catch (InterruptedException e) {
-
+                throw e;
             }
             client.quit();
              try {

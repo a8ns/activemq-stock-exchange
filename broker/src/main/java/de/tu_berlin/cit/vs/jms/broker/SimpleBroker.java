@@ -15,15 +15,15 @@ import org.apache.activemq.ActiveMQConnectionFactory;
 public class SimpleBroker {
     private static final Logger logger = LoggingUtils.getLogger(SimpleBroker.class);
 
-    Map<String, Client> clients = new HashMap<>();
-    Connection con;
-    Session session;
-    Queue registrationQueue;
-    MessageConsumer registrationConsumer;
+    private Map<String, Client> clients = new HashMap<>();
+    protected Connection con;
+    protected Session session;
+    private Queue registrationQueue;
+    protected MessageConsumer registrationConsumer;
 
-    StockExchange stockExchange;
-    Map<String, Topic> topicMap = new HashMap<>();
-    Map<String, MessageProducer> topicProducers = new HashMap<>();
+    protected StockExchange stockExchange;
+    protected Map<String, Topic> topicMap = new HashMap<>();
+    protected Map<String, MessageProducer> topicProducers = new HashMap<>();
 
     public SimpleBroker(StockExchange stockExchange) throws JMSException {
         this.stockExchange = stockExchange;
@@ -86,10 +86,12 @@ public class SimpleBroker {
                         stock.getPrice().setScale(2, RoundingMode.DOWN);
                 break;
             case STOCK_SOLD:
-                payload = stock.getAvailableCount() + stock.getName() + " stock has been sold by a client.";
+                payload = stock.getAvailableCount() + " " + stock.getName() + " stock has been sold by a client. Available: " +
+                        stockExchange.getStockMap().get(stock.getName()).getAvailableCount();
                 break;
             case STOCK_BOUGHT:
-                payload = stock.getAvailableCount() + stock.getName() + " stock is bought by a client.";
+                payload = stock.getAvailableCount() + " " +  stock.getName() + " stock is bought by a client. Available: " +
+                        stockExchange.getStockMap().get(stock.getName()).getAvailableCount();
                 break;
             default:
                 break;
@@ -114,10 +116,12 @@ public class SimpleBroker {
                 }
                 break;
             case STOCK_SOLD:
-                payload = stockName + " stock has been sold by a client. Available: "  + stockName;;
+                payload = stockName + " stock has been sold by a client. Available: " +
+                        stockExchange.getStockMap().get(stockName).getAvailableCount();
                 break;
             case STOCK_BOUGHT:
-                payload =  stockName + " stock is bought by a client. Available: "  + stockName;;
+                payload =  stockName + " stock is bought by a client. Available: " +
+                        stockExchange.getStockMap().get(stockName).getAvailableCount();
                 break;
             default:
                 break;
@@ -165,11 +169,6 @@ public class SimpleBroker {
                     replyOnceProducer.setTimeToLive(5000);
                     logger.log(Level.FINE, "ReplyTo destination: " + replyTo);
                     logger.log(Level.FINE, "Reply: " + reply);
-                    if (replyTo instanceof TemporaryQueue) {
-                        logger.log(Level.FINE, "Temp queue confirmed");
-                    } else {
-                        logger.log(Level.WARNING, "ReplyTo is not a temp queue: " + replyTo.getClass());
-                    }
                     replyOnceProducer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
                     try {
                         replyOnceProducer.send(replyTo, reply);
@@ -205,7 +204,7 @@ public class SimpleBroker {
         return 0;
     }
 
-    public synchronized void sellStock(Client client, String stockName, Integer quantity) throws JMSException {
+    public synchronized BigDecimal sellStock(Client client, String stockName, Integer quantity) throws JMSException {
         try {
             if (stockExchange.getStockMap().containsKey(stockName)) {
                 client.removeStock(stockName, quantity);
@@ -214,9 +213,10 @@ public class SimpleBroker {
                 stock.setAvailableCount(newQuantity);
             }
             updateStockTopic(stockName, StockEvent.STOCK_SOLD);
-            client.addFunds(
-                    this.getCurrentStockPrice(stockName).multiply(BigDecimal.valueOf(quantity))
+            BigDecimal price = this.getCurrentStockPrice(stockName);
+            client.addFunds(price.multiply(BigDecimal.valueOf(quantity))
             );
+            return price;
         } catch (JMSException e) {
             logger.log(Level.SEVERE, "Error processing sell stock", e);
             throw e;

@@ -5,6 +5,7 @@ import de.tu_berlin.cit.vs.jms.common.*;
 import javax.jms.*;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -113,7 +114,8 @@ public class Client {
                                             ((BuyMessage) brokerMessage).getAmount());
                                     addStock(boughtStock.getName(), boughtStock.getMaxStockCount(), boughtStock.getPrice());
                                     String buyConfirmationPayload = "Confirmation: " + boughtStock.getMaxStockCount() +
-                                            " stocks of " + boughtStock.getName() + " bought. Price: " + boughtStock.getPrice();
+                                            " stocks of " + boughtStock.getName() + " bought. Price: " +
+                                            boughtStock.getPrice().setScale(2, RoundingMode.DOWN);
                                     TransactionConfirmationMessage transactionConfirmationMessage =
                                             new TransactionConfirmationMessage(buyConfirmationPayload);
                                     transactionOM = session.createObjectMessage(transactionConfirmationMessage);
@@ -136,9 +138,9 @@ public class Client {
                                 ObjectMessage transactionOM;
                                 try {
                                     logger.log(Level.FINE, "Sending Sell Confirmation for : " + client.getClientName());
-                                    broker.sellStock(this, stockNameForSell, amount);
+                                    BigDecimal price = broker.sellStock(this, stockNameForSell, amount);
                                     String sellConfirmationPayload = "Confirmation: " + amount + " stocks of "
-                                        + stockNameForSell + " sold. Price: TODO " ; // TODO: retrieve proper price
+                                        + stockNameForSell + " sold. Price: " + price.setScale(2, RoundingMode.DOWN);
                                     TransactionConfirmationMessage transactionConfirmationMessage =
                                             new TransactionConfirmationMessage(sellConfirmationPayload);
                                     transactionOM = session.createObjectMessage(transactionConfirmationMessage);

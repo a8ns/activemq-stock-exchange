@@ -58,10 +58,11 @@ public class StockExchange {
 
     public void priceTickerGenerator(String filePath, Optional<Integer> sleepMillis) {
         try (Reader reader = new FileReader(filePath)) {
-            CSVFormat format = CSVFormat.DEFAULT
-                    .withFirstRecordAsHeader()
-                    .withIgnoreHeaderCase()
-                    .withTrim(false);
+            CSVFormat format = CSVFormat.DEFAULT.builder()
+                    .setHeader()
+                    .setIgnoreHeaderCase(true)
+                    .setTrim(false)
+                    .build();
 
             CSVParser parser = format.parse(reader);
 
