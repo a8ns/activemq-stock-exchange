@@ -11,11 +11,11 @@ public class Configuration {
 
     public static Level getRootLogLevel() {
         // Set the global default log level here
-        return Level.FINE;
+        return Level.INFO;
     }
 
     public static Level getConsoleLogLevel() {
         // Set the console handler's log level
-        return Level.FINE;
+        return Level.INFO;
     }
 }

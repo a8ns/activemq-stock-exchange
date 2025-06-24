@@ -1,19 +1,24 @@
 package de.tu_berlin.cit.vs.jms.common;
 
-import java.util.logging.ConsoleHandler;
-import java.util.logging.Formatter;
-import java.util.logging.LogRecord;
-import java.util.logging.Logger;
+
+
+import org.slf4j.bridge.SLF4JBridgeHandler;
+import java.util.logging.*;
 
 public class LoggingUtils {
+
     static {
         try {
+            SLF4JBridgeHandler.removeHandlersForRootLogger();
+            SLF4JBridgeHandler.install();
+
+
             // Configure the root logger and handlers
             Logger rootLogger = Logger.getLogger("");
             rootLogger.setLevel(Configuration.getRootLogLevel()); // Set default level
 
             // Remove existing handlers to avoid duplicates
-            for (java.util.logging.Handler handler : rootLogger.getHandlers()) {
+            for (Handler handler : rootLogger.getHandlers()) {
                 rootLogger.removeHandler(handler);
             }
 
