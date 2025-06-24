@@ -126,7 +126,7 @@ public class JmsBrokerClient {
                             if (topicMessage instanceof TextMessage) {
                                 TextMessage textMessage = (TextMessage) topicMessage;
                                 try {
-                                    logger.log(Level.INFO, "Received TextMessage: " + textMessage.getText());
+                                    logger.log(Level.INFO, textMessage.getText());
                                 } catch (JMSException e) {
                                     logger.log(Level.SEVERE, "Error processing TextMessage", e);
                                 }
@@ -167,7 +167,7 @@ public class JmsBrokerClient {
                             if (topicMessage instanceof TextMessage) {
                                 TextMessage textMessage = (TextMessage) topicMessage;
                                 try {
-                                    logger.log(Level.INFO, "Received TextMessage: " + textMessage.getText());
+                                    logger.log(Level.INFO, textMessage.getText());
                                 } catch (JMSException e) {
                                     logger.log(Level.SEVERE, "Error processing TextMessage", e);
                                 }
