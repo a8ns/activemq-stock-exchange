@@ -309,6 +309,10 @@ public class JmsBrokerClient {
 
             }
             client.quit();
+             try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+            }
             System.exit(0);
         }
 
