@@ -2,6 +2,7 @@ package de.tu_berlin.cit.vs.jms.common;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 
 public class Stock implements Serializable {
@@ -58,7 +59,7 @@ public class Stock implements Serializable {
     @Override
     public String toString() {
         return "" + getName() +
-                " -- price: " + getPrice() +
+                " -- price: " + getPrice().setScale(2, RoundingMode.DOWN) +
                 " -- available: " + getAvailableCount() +
                 " -- sum: " + getMaxStockCount();
     }

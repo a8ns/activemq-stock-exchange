@@ -7,6 +7,7 @@ import javax.jms.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.IllegalStateException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Arrays;
@@ -79,79 +80,76 @@ public class JmsBrokerClient {
         if (message instanceof ObjectMessage) {
             ObjectMessage objReply = (ObjectMessage) message;
             Object responseData = objReply.getObject();
-            if (responseData instanceof ListMessage) {
-                ListMessage listResponse = (ListMessage) responseData;
-                listResponse.getStocks().forEach(stock -> {
-                    logger.log(Level.INFO, "Stock: " + stock.toString());
-                });
-            }
-            else if (responseData instanceof InfoMessage) {
-                InfoMessage infoResponse = (InfoMessage) responseData;
-                logger.log(Level.INFO, "Stock: " + infoResponse.getInfo().getName() + ", max. Amount: " + infoResponse.getInfo().getMaxStockCount());
-            }
-            else if (responseData instanceof ProfileMessage) {
-                ProfileMessage profileResponse = (ProfileMessage) responseData;
-                logger.log(Level.INFO, "Client Name: " + profileResponse.getClientName());
-                logger.log(Level.INFO, "Funds: " + profileResponse.getFunds().setScale(2, RoundingMode.DOWN));
-                logger.log(Level.INFO, "Owns stocks:");
-                List<Stock> stocks = profileResponse.getStocks();
-                if (!stocks.isEmpty()) {
-                    stocks.forEach(stock -> {
-                        logger.log(Level.INFO, "-- Stock: " + stock.getName() + ", Amount: " + stock.getMaxStockCount());
+            switch (responseData) {
+                case ListMessage listResponse -> {
+                    listResponse.getStocks().forEach(stock -> {
+                        logger.log(Level.INFO, "Stock: " + stock.toString());
                     });
-                } else {
-                    logger.log(Level.INFO, "-- None --");
                 }
-            } else if (responseData instanceof TransactionConfirmationMessage) {
-                TransactionConfirmationMessage transactionConfirmationResponse = (TransactionConfirmationMessage) responseData;
-                logger.log(Level.INFO,transactionConfirmationResponse.getMessage());
-
-            } else if (responseData instanceof TransactionRefusalMessage) {
-                TransactionRefusalMessage transactionRefusalResponse = (TransactionRefusalMessage) responseData;
-                logger.log(Level.INFO,transactionRefusalResponse.getMessage());
-            }
-
-            //receive Topic-> (un)subscribe to it
-            if(responseData instanceof TopicMessage) {
-                Topic topic = ((TopicMessage) responseData).getTopic();
-                String topicName = topic.getTopicName();
-                boolean isSetSubscribing = ((TopicMessage) responseData).isSetSubscribing();
-
-                if(isSetSubscribing) {
-                    if(!topicConsumer.containsKey(topicName)) {
-                        logger.log(Level.INFO, "Subscribing to " + topicName);
-                        //create new consumer for each topic.
-                        //MessageListener required for these consumer, so we have this function block from 100-109. Limited to only text messages
-                        MessageConsumer consumer = session.createConsumer(topic);
-                        consumer.setMessageListener(topicMessage -> {
-                            if (topicMessage instanceof TextMessage) {
-                                TextMessage textMessage = (TextMessage) topicMessage;
-                                try {
-                                    logger.log(Level.INFO, textMessage.getText());
-                                } catch (JMSException e) {
-                                    logger.log(Level.SEVERE, "Error processing TextMessage", e);
-                                }
-                            } else {
-                                logger.log(Level.SEVERE, "Topic Message is limited to text only. Actual type: " + topicMessage.toString());
-                            }
+                case InfoMessage infoResponse -> {
+                    logger.log(Level.INFO, "Stock: " + infoResponse.getInfo().getName() +
+                            ", max. Amount: " + infoResponse.getInfo().getMaxStockCount());
+                }
+                case ProfileMessage profileResponse -> {
+                    logger.log(Level.INFO, "Client Name: " + profileResponse.getClientName());
+                    logger.log(Level.INFO, "Funds: " + profileResponse.getFunds().setScale(2, RoundingMode.DOWN));
+                    logger.log(Level.INFO, "Owns stocks:");
+                    List<Stock> stocks = profileResponse.getStocks();
+                    if (!stocks.isEmpty()) {
+                        stocks.forEach(stock -> {
+                            logger.log(Level.INFO, "-- Stock: " + stock.getName() + ", Amount: " + stock.getMaxStockCount());
                         });
-                        topicConsumer.put(topicName, consumer);
-                        logger.log(Level.FINE, "Subscribed to topic: " + topicName);
                     } else {
-                        logger.log(Level.INFO, "Already subscribed to " + topicName);
-                    }
-                } else {
-                    if(topicConsumer.containsKey(topicName)) {
-                        logger.log(Level.INFO, "Unsubscribing to " + topicName);
-                        topicConsumer.get(topicName).close();
-                        topicConsumer.remove(topicName);
-                        logger.log(Level.INFO, "Unsubscribed from topic: " + topicName);
-                    } else{
-                        logger.log(Level.INFO, "Client not subscribed to " + topicName);
+                        logger.log(Level.INFO, "-- None --");
                     }
                 }
-            }
+                case TransactionConfirmationMessage transactionConfirmationResponse -> {
+                    logger.log(Level.INFO,transactionConfirmationResponse.getMessage());
+                }
+                case TransactionRefusalMessage transactionRefusalResponse -> {
+                    logger.log(Level.INFO,transactionRefusalResponse.getMessage());
+                }
+                case TopicMessage topic -> {
+                    String topicName = topic.getTopic().getTopicName();
+                    boolean isSetSubscribing = ((TopicMessage) responseData).isSetSubscribing();
 
+                    if(isSetSubscribing) {
+                        if(!topicConsumer.containsKey(topicName)) {
+                            logger.log(Level.INFO, "Subscribing to " + topicName);
+                            //create new consumer for each topic.
+                            //MessageListener required for these consumer, so we have this function block from 100-109. Limited to only text messages
+                            MessageConsumer consumer = session.createConsumer(topic.getTopic());
+                            consumer.setMessageListener(topicMessage -> {
+                                if (topicMessage instanceof TextMessage) {
+                                    TextMessage textMessage = (TextMessage) topicMessage;
+                                    try {
+                                        logger.log(Level.INFO, textMessage.getText());
+                                    } catch (JMSException e) {
+                                        logger.log(Level.SEVERE, "Error processing TextMessage", e);
+                                    }
+                                } else {
+                                    logger.log(Level.SEVERE, "Topic Message is limited to text only. Actual type: " + topicMessage.toString());
+                                }
+                            });
+                            topicConsumer.put(topicName, consumer);
+                            logger.log(Level.FINE, "Subscribed to topic: " + topicName);
+                        } else {
+                            logger.log(Level.INFO, "Already subscribed to " + topicName);
+                        }
+                    } else {
+                        if(topicConsumer.containsKey(topicName)) {
+                            logger.log(Level.INFO, "Unsubscribing to " + topicName);
+                            topicConsumer.get(topicName).close();
+                            topicConsumer.remove(topicName);
+                            logger.log(Level.INFO, "Unsubscribed from topic: " + topicName);
+                        } else{
+                            logger.log(Level.INFO, "Client not subscribed to " + topicName);
+                        }
+                    }
+                }
+
+                default -> throw new IllegalStateException("Unexpected value: " + responseData);
+            }
 
         } else if (message instanceof TextMessage) {
             TextMessage textMessage = (TextMessage) message;
