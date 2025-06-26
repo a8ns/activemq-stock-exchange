@@ -311,14 +311,22 @@ public class JmsBrokerClient {
                             break;
                         case "buy":
                             if(task.length == 3) {
-                                client.buy(task[1], Integer.parseInt(task[2]));
+                                try {
+                                    client.buy(task[1], Integer.parseInt(task[2]));
+                                } catch (NumberFormatException e) {
+                                    System.out.println(task[2] + " is not a valid number.");
+                                }
                             } else {
                                 System.out.println("Correct usage: buy [stock] [amount]");
                             }
                             break;
                         case "sell":
                             if(task.length == 3) {
-                                client.sell(task[1], Integer.parseInt(task[2]));
+                                try {
+                                    client.sell(task[1], Integer.parseInt(task[2]));
+                                } catch (NumberFormatException e) {
+                                    System.out.println(task[2] + " is not a valid number.");
+                                }
                             } else {
                                 System.out.println("Correct usage: sell [stock] [amount]");
                             }
