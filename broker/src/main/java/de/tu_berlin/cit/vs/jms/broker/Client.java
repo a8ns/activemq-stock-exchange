@@ -79,8 +79,14 @@ public class Client {
                         case STOCK_INFO:
                             if (brokerMessage instanceof RequestInfoMessage) {
                                 RequestInfoMessage rim = (RequestInfoMessage) brokerMessage;
-                                InfoMessage listMessage = new InfoMessage(broker.getStocks().get(rim.getStockName()));
-                                ObjectMessage request = session.createObjectMessage(listMessage);
+                                ObjectMessage request;
+                                if (broker.getStocks().get(rim.getStockName()) != null) {
+                                    InfoMessage listMessage = new InfoMessage(broker.getStocks().get(rim.getStockName()));
+                                    request = session.createObjectMessage(listMessage);
+                                } else {
+                                    TransactionRefusalMessage listMessage = new TransactionRefusalMessage("No such stock.");
+                                    request = session.createObjectMessage(listMessage);
+                                }
                                 logger.log(Level.FINE, "About to send info message");
                                 producer.send(request);
                             }
