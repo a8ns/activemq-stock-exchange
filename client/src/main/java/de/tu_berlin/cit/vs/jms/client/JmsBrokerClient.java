@@ -159,7 +159,7 @@ public class JmsBrokerClient {
     }
 
     private RegisterAcknowledgementMessage registerWithBroker() throws JMSException {
-        Integer timeout = 300000; // 300 seconds
+        Integer timeout = 100000; // 10 seconds
         BigDecimal initialFunds = BigDecimal.valueOf(100000);
         RegisterMessage registerMessage = new RegisterMessage(clientName, initialFunds);
 
@@ -172,7 +172,7 @@ public class JmsBrokerClient {
         request.setJMSReplyTo(replyQueue);
         request.setJMSCorrelationID(clientName+"-"+System.currentTimeMillis());
         registrationProducer.send(request);
-        Message reply = registrationConsumer.receive(timeout);
+        Message reply = registrationConsumer.receive();
         if (reply == null) {
             throw new JMSException("Could not receive registration response");
         }
@@ -182,7 +182,7 @@ public class JmsBrokerClient {
             if (replyObj instanceof RegisterAcknowledgementMessage) {
                 RegisterAcknowledgementMessage response = (RegisterAcknowledgementMessage) replyObj;
 
-                //registrationProducer.close();
+                registrationProducer.close();
                 return response;
             }
         } else if (reply instanceof TextMessage) {
