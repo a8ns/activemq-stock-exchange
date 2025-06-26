@@ -145,9 +145,10 @@ public class SimpleBroker {
             throw new IllegalArgumentException("Expected RegisterMessage");
         }
         RegisterMessage registerMessage = (RegisterMessage) obj;
+        Destination replyTo = objMsg.getJMSReplyTo();
         if (registerClient(registerMessage.getClientName(), connection, registerMessage.getInitialAmount()) == 0) {
             // get ReplyTo,  produce message and send out
-            Destination replyTo = objMsg.getJMSReplyTo();
+
             logger.log(Level.FINE, "ReplyTo: " + replyTo.toString());
             if (replyTo != null) {
                 Client newClient = clients.get(registerMessage.getClientName());
@@ -179,6 +180,28 @@ public class SimpleBroker {
                     logger.log(Level.FINE, "replyTo sent out, replyOnceProducer closed");
                 }
             }
+        } else {
+//            RegisterAcknowledgementMessage replyRefuseMessage =
+//                    new RegisterAcknowledgementMessage(registerMessage.getClientName(),
+//                            null,
+//                            null);
+//            ObjectMessage reply = replySession.createObjectMessage(replyRefuseMessage);
+            String replyRefuse = "Du bist schon angemeldet, hau ab!";
+            TextMessage replyRefuseMessage = session.createTextMessage(replyRefuse);
+            replyRefuseMessage.setJMSCorrelationID(objMsg.getJMSCorrelationID());
+            replyRefuseMessage.setJMSDeliveryMode(DeliveryMode.NON_PERSISTENT);
+            replyRefuseMessage.setJMSReplyTo(replyTo);
+
+            MessageProducer replyOnceProducer = replySession.createProducer(null);
+            replyOnceProducer.setTimeToLive(5000);
+            logger.log(Level.FINE, "ReplyTo destination: " + replyTo);
+            logger.log(Level.FINE, "Reply: " + replyRefuseMessage);
+            replyOnceProducer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+            try {
+                replyOnceProducer.send(replyTo, replyRefuseMessage);
+            } finally {
+                replyOnceProducer.close();
+            }
         }
     }
 
@@ -194,8 +217,10 @@ public class SimpleBroker {
     public synchronized int registerClient(String clientName, Connection connection, BigDecimal funds) throws JMSException {
         // check if client exists
         if (this.clients.containsKey(clientName)) {
-            throw new IllegalArgumentException("Client " + clientName + " already registered");
+            logger.log(Level.WARNING, "Client " + clientName + " already registered");
+            return -1;
         }
+
 
         Client newClient = new Client(this, clientName, connection, funds);
         newClient.setMessageListener(msg -> newClient.handleClientMessage(newClient, msg));

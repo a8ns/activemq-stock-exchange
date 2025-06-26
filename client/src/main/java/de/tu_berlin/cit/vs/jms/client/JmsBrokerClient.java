@@ -156,6 +156,7 @@ public class JmsBrokerClient {
         } else if (message instanceof TextMessage) {
             TextMessage textMessage = (TextMessage) message;
             logger.log(Level.INFO,"Topic Update: " + textMessage.getText());
+
         }
     }
 
@@ -186,6 +187,10 @@ public class JmsBrokerClient {
                 //registrationProducer.close();
                 return response;
             }
+        } else if (reply instanceof TextMessage) {
+            TextMessage textMessage = (TextMessage) reply;
+            logger.log(Level.WARNING, textMessage.getText());
+            System.exit(0);
         }
         throw new JMSException("Could not receive registration response");
 
