@@ -2,6 +2,7 @@ package de.tu_berlin.cit.vs.jms.broker;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -30,7 +31,9 @@ public class JmsBrokerServer {
                 logger.log(Level.FINE, stock);
             }
             try {
-                StockExchange stockExchange = new StockExchange(stocks, "historical-prices/stock_prices_5yr.csv");
+                StockExchange stockExchange = new StockExchange(stocks,
+                        "historical-prices/stock_prices_5yr.csv",
+                        Optional.of(30000));
                 SimpleBroker broker = new SimpleBroker(stockExchange);
                 System.in.read();
                 broker.stop();

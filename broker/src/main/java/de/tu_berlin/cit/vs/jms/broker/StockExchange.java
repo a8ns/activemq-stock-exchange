@@ -73,7 +73,7 @@ public class StockExchange {
             for (CSVRecord record : parser) {
                 processStockRecord(record);
                 notifyBrokers();
-                Thread.sleep(sleepMillis.orElse(10000)); // update price every 10 seconds
+                Thread.sleep(sleepMillis.orElse(30000)); // update price every 10 seconds
             }
 
 
