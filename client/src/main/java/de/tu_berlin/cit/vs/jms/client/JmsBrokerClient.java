@@ -284,6 +284,12 @@ public class JmsBrokerClient {
             } catch (InterruptedException e) {
                 throw e;
             }
+            client.profile();
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                throw e;
+            }
             client.quit();
              try {
                 Thread.sleep(2000);
