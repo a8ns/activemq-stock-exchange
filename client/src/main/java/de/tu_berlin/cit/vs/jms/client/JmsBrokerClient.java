@@ -45,35 +45,39 @@ public class JmsBrokerClient {
         this.con.start();
         this.session = con.createSession(false, Session.AUTO_ACKNOWLEDGE);
 
-        RegisterAcknowledgementMessage response = registerWithBroker();
+        try {
+            RegisterAcknowledgementMessage response = registerWithBroker();
 
-        if (response.getClientName().equals(this.clientName)) {
-            if ( response.getClientIncomingQueue() instanceof  Queue &&
-                    response.getClientOutgoingQueue() instanceof  Queue ) {
-                // all further actions make sense if client gets registration
-                this.incomingQueue = response.getClientIncomingQueue();
-                this.outgoingQueue = response.getClientOutgoingQueue();
-                this.messageConsumer = session.createConsumer(incomingQueue);
-                this.messageProducer = session.createProducer(outgoingQueue);
-                logger.log(Level.FINE, "Incoming Queue: " + incomingQueue);
-                logger.log(Level.FINE, "Outgoing Queue: " + outgoingQueue);
-                MessageListener messageListener = message -> {
-                    try {
-                        processMessages(message);
-                    } catch (JMSException e) {
-                        logger.log(Level.SEVERE, "Error processing JMS message", e);
-                    }
-                };
-                this.messageConsumer.setMessageListener(messageListener);
-                logger.log(Level.FINE, "Message listener registered");
+            if (response.getClientName().equals(this.clientName)) {
+                if ( response.getClientIncomingQueue() instanceof  Queue &&
+                        response.getClientOutgoingQueue() instanceof  Queue ) {
+                    // all further actions make sense if client gets registration
+                    this.incomingQueue = response.getClientIncomingQueue();
+                    this.outgoingQueue = response.getClientOutgoingQueue();
+                    this.messageConsumer = session.createConsumer(incomingQueue);
+                    this.messageProducer = session.createProducer(outgoingQueue);
+                    logger.log(Level.FINE, "Incoming Queue: " + incomingQueue);
+                    logger.log(Level.FINE, "Outgoing Queue: " + outgoingQueue);
+                    MessageListener messageListener = message -> {
+                        try {
+                            processMessages(message);
+                        } catch (JMSException e) {
+                            logger.log(Level.SEVERE, "Error processing JMS message", e);
+                        }
+                    };
+                    this.messageConsumer.setMessageListener(messageListener);
+                    logger.log(Level.FINE, "Message listener registered");
+                } else {
+                    throw new JMSException("Client " + this.clientName + " received a non-queue");
+                }
+
             } else {
-                throw new JMSException("Client " + this.clientName + " received a non-queue");
+                throw new JMSException("Client " + this.clientName + " does not match expected client");
             }
-
-        } else {
-            throw new JMSException("Client " + this.clientName + " does not match expected client");
+        } catch (JMSException e) {
+            logger.log(Level.SEVERE, "Du wirst gleich rausgeschmießen", e);
+            throw e;
         }
-
     }
 
     private void processMessages(Message message) throws JMSException {
@@ -116,8 +120,6 @@ public class JmsBrokerClient {
                     if(isSetSubscribing) {
                         if(!topicConsumer.containsKey(topicName)) {
                             logger.log(Level.INFO, "Subscribing to " + topicName);
-                            //create new consumer for each topic.
-                            //MessageListener required for these consumer, so we have this function block from 100-109. Limited to only text messages
                             MessageConsumer consumer = session.createConsumer(topic.getTopic());
                             consumer.setMessageListener(topicMessage -> {
                                 if (topicMessage instanceof TextMessage) {
@@ -159,7 +161,7 @@ public class JmsBrokerClient {
     }
 
     private RegisterAcknowledgementMessage registerWithBroker() throws JMSException {
-        Integer timeout = 100000; // 10 seconds
+        Integer timeout = 3000; // 3 seconds
         BigDecimal initialFunds = BigDecimal.valueOf(100000);
         RegisterMessage registerMessage = new RegisterMessage(clientName, initialFunds);
 
@@ -168,29 +170,38 @@ public class JmsBrokerClient {
         Queue replyQueue = session.createQueue(clientName + "-registration-reply-queue");
         MessageConsumer registrationConsumer = session.createConsumer(replyQueue);
 
-        ObjectMessage request = session.createObjectMessage(registerMessage);
-        request.setJMSReplyTo(replyQueue);
-        request.setJMSCorrelationID(clientName+"-"+System.currentTimeMillis());
-        registrationProducer.send(request);
-        Message reply = registrationConsumer.receive();
-        if (reply == null) {
-            throw new JMSException("Could not receive registration response");
-        }
-        if (reply instanceof ObjectMessage) {
-            ObjectMessage objReply = (ObjectMessage) reply;
-            Object replyObj = objReply.getObject();
-            if (replyObj instanceof RegisterAcknowledgementMessage) {
-                RegisterAcknowledgementMessage response = (RegisterAcknowledgementMessage) replyObj;
-
-                registrationProducer.close();
-                return response;
+        try {
+            ObjectMessage request = session.createObjectMessage(registerMessage);
+            request.setJMSReplyTo(replyQueue);
+            request.setJMSCorrelationID(clientName + "-" + System.currentTimeMillis());
+            registrationProducer.send(request);
+            Message reply = registrationConsumer.receive(timeout);
+            if (reply == null) {
+                logger.log(Level.SEVERE, "Client " + this.clientName + " does not match expected client");
+                throw new JMSException("Could not receive registration response");
             }
-        } else if (reply instanceof TextMessage) {
-            TextMessage textMessage = (TextMessage) reply;
-            logger.log(Level.WARNING, textMessage.getText());
-            System.exit(0);
+
+            if (reply instanceof ObjectMessage) {
+                ObjectMessage objReply = (ObjectMessage) reply;
+                Object replyObj = objReply.getObject();
+                if (replyObj instanceof RegisterAcknowledgementMessage) {
+                    RegisterAcknowledgementMessage response = (RegisterAcknowledgementMessage) replyObj;
+                    registrationProducer.close();
+                    registrationConsumer.close();
+                    return response;
+                }
+            } else if (reply instanceof TextMessage) {
+                TextMessage textMessage = (TextMessage) reply;
+                logger.log(Level.WARNING, textMessage.getText());
+                throw new JMSException("Registration failed: " + textMessage.getText());
+
+            }
+            throw new JMSException("Received unexpected message type: " + reply.getClass().getSimpleName());
+
+        } finally {
+            registrationConsumer.close();
+            registrationProducer.close();
         }
-        throw new JMSException("Could not receive registration response");
 
     }
 
@@ -384,7 +395,7 @@ public class JmsBrokerClient {
                 Thread.sleep(500);
             }
         } catch (JMSException | IOException ex) {
-            Logger.getLogger(JmsBrokerClient.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(JmsBrokerClient.class.getName()).log(Level.SEVERE, ex.getMessage(), ex);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
