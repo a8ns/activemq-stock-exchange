@@ -24,10 +24,9 @@ public class JmsBrokerClient {
     String clientName;
     Connection con;
     Session session;
-    Queue incomingQueue;  // Receive from clients
-    Queue outgoingQueue;  // Send to clients
+    Queue incomingQueue;
+    Queue outgoingQueue;
 
-    //rename to distinct message and topic Consumer
     MessageProducer messageProducer;
     MessageConsumer messageConsumer;
 
@@ -162,7 +161,7 @@ public class JmsBrokerClient {
 
     private RegisterAcknowledgementMessage registerWithBroker() throws JMSException {
         Integer timeout = 3000; // 3 seconds
-        BigDecimal initialFunds = BigDecimal.valueOf(100000);
+        BigDecimal initialFunds = BigDecimal.valueOf(100000); // $100000
         RegisterMessage registerMessage = new RegisterMessage(clientName, initialFunds);
 
         Queue registrationQueue = session.createQueue(registrationQueueName);

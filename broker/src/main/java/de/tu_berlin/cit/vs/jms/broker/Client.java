@@ -18,8 +18,8 @@ public class Client {
 
     private String clientName;
     private Session session;
-    private Queue incomingQueue;  // Receive from client
-    private Queue outgoingQueue;  // Send to client
+    private Queue incomingQueue;
+    private Queue outgoingQueue;
     private MessageProducer producer;
     private MessageConsumer consumer;
     private Map<String, Stock> stocks = new HashMap<>();
@@ -182,8 +182,6 @@ public class Client {
                     }
                 }
 
-            } else if (msg instanceof TextMessage) { // for the case of non-object messages (are we gonna have it at all?)
-//                processClientCommand(client, ((TextMessage) msg).getText());
             }
         } catch (JMSException e) {
             logger.severe("Error from client " + client.getClientName() + ": " + e.getMessage());
