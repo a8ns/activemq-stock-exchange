@@ -147,7 +147,6 @@ public class SimpleBroker {
         RegisterMessage registerMessage = (RegisterMessage) obj;
         Destination replyTo = objMsg.getJMSReplyTo();
         if (registerClient(registerMessage.getClientName(), connection, registerMessage.getInitialAmount()) == 0) {
-            // get ReplyTo,  produce message and send out
 
             logger.log(Level.FINE, "ReplyTo: " + replyTo.toString());
             if (replyTo != null) {
@@ -181,11 +180,7 @@ public class SimpleBroker {
                 }
             }
         } else {
-//            RegisterAcknowledgementMessage replyRefuseMessage =
-//                    new RegisterAcknowledgementMessage(registerMessage.getClientName(),
-//                            null,
-//                            null);
-//            ObjectMessage reply = replySession.createObjectMessage(replyRefuseMessage);
+
             String replyRefuse = "Du bist schon angemeldet, hau ab!";
             TextMessage replyRefuseMessage = session.createTextMessage(replyRefuse);
             replyRefuseMessage.setJMSCorrelationID(objMsg.getJMSCorrelationID());
