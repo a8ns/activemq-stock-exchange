@@ -1,5 +1,7 @@
 Stock Exchange and Broker implemented with ActiveMQ as a Message Broker
-![Architecture diagram]("Architecture/ArchitectureDiagram.png")
+
+![Architecture diagram](Architecture/ArchitectureDiagram.png)
+
 ## Prerequisites
 - Maven
 - Java 21
